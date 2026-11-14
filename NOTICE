@@ -111,7 +111,20 @@ accordance with the respective license terms.
    APK at assets/licenses/JetBrainsMono-OFL-1.1.txt.
 
 ========================================================================
-9. Test-only components
+9. AiCode (upstream project)
+------------------------------------------------------------------------
+   Project:  https://github.com/jieapi/AiCode
+   Copyright (C) AiCode contributors
+   License:  GNU General Public License version 3.0 (GPL-3.0)
+
+   AiVerse is a derivative work forked from AiCode and continuously
+   syncs upstream fixes and features. AiCode is licensed under GPL-3.0;
+   its copyright and license notices are hereby preserved in accordance
+   with the GPL-3.0 terms. The full license text is available in the
+   LICENSE file and from the project URL above.
+
+========================================================================
+10. Test-only components
 ------------------------------------------------------------------------
    These are used solely for testing and are not distributed in the
    released APK:
