@@ -132,8 +132,16 @@ interface AgentWorkflow {
      * 默认跟随当前聊天模型；若配置了优化输入专用模型且可用则用之。
      * 输入为空或模型返回空文本返回 [OptimizeResult.NoChange]；润色成功返回 [OptimizeResult.Success]。
      * 请求失败通过异常上抛（调用方捕获后转为用户提示），不在此静默。
+     *
+     * [onDelta] 为流式润色的增量回调：模型每吐出一小段新文字就回调一次（增量，非累积），
+     * 供调用方逐字回填输入框。重试/换 Key 时会先以空串回调一次表示「重置累积缓冲」，
+     * 调用方需据此清空已累积的旧增量，避免重试后新旧文本拼接错乱。
      */
-    suspend fun optimizeInput(sessionId: String, text: String): OptimizeResult
+    suspend fun optimizeInput(
+        sessionId: String,
+        text: String,
+        onDelta: suspend (String) -> Unit = {}
+    ): OptimizeResult
 }
 
 /**

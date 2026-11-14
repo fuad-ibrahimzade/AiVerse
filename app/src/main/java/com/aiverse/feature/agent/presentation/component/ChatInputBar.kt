@@ -139,6 +139,7 @@ import compose.icons.feathericons.Check
 import compose.icons.feathericons.Copy
 import compose.icons.feathericons.Pause
 import compose.icons.feathericons.Play
+import compose.icons.feathericons.RotateCcw
 import compose.icons.feathericons.Target
 import compose.icons.feathericons.X
 import compose.icons.feathericons.Maximize
@@ -241,6 +242,10 @@ internal fun ChatInputBar(
     onCancelOptimize: () -> Unit = {},
     /** 优化输入是否进行中：进行时按钮显示进度环，点击改为停止。 */
     isOptimizing: Boolean = false,
+    /** 是否存在可撤销的「优化输入」回填：为 true 时全屏按钮下方常驻显示撤销小按钮。 */
+    canUndoOptimize: Boolean = false,
+    /** 点击撤销小按钮：恢复最近一次「优化输入」回填前的旧草稿。 */
+    onUndoOptimize: () -> Unit = {},
     /** 长按「优化输入」按钮时打开默认模型配置页。 */
     onOpenOptimizeModelSettings: () -> Unit = {},
     /** 点击输入区的 MCP 图标，直接打开 MCP 服务器设置页。 */
@@ -606,16 +611,34 @@ internal fun ChatInputBar(
                         )
                     )
 
-                    IconButton(
-                        onClick = { showFullScreenInput = true },
-                        modifier = Modifier.size(32.dp)
+                    Column(
+                        horizontalAlignment = Alignment.Start
                     ) {
-                        Icon(
-                            FeatherIcons.Maximize,
-                            contentDescription = stringResource(R.string.chat_input_expand),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        IconButton(
+                            onClick = { showFullScreenInput = true },
+                            modifier = Modifier.size(densityTokens.scale(32))
+                        ) {
+                            Icon(
+                                FeatherIcons.Maximize,
+                                contentDescription = stringResource(R.string.chat_input_expand),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(densityTokens.scale(18))
+                            )
+                        }
+                        // 撤销「优化输入」回填：常驻小按钮，位于全屏按钮正下方，仅存在可撤销回填时显示。
+                        if (canUndoOptimize) {
+                            IconButton(
+                                onClick = onUndoOptimize,
+                                modifier = Modifier.size(densityTokens.scale(32))
+                            ) {
+                                Icon(
+                                    FeatherIcons.RotateCcw,
+                                    contentDescription = stringResource(R.string.chat_optimize_undo),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(densityTokens.scale(18))
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -1175,6 +1198,7 @@ internal fun SendButton(
     onSend: () -> Unit,
     onStop: () -> Unit
 ) {
+    val densityTokens = LocalUIDensityTokens.current
     // AI 工作中：输入框为空显示停止按钮；有内容显示橙色发送（消息排队发送）；空闲时按常规发送按钮
     val showStop = isBusy && !hasContent
     val clickable = showStop || canSend
@@ -1192,13 +1216,13 @@ internal fun SendButton(
     }
     Box(
         modifier = Modifier
-            .size(36.dp)
+            .size(densityTokens.scale(36))
             .clip(CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Box(
             modifier = Modifier
-                .size(36.dp)
+                .size(densityTokens.scale(36))
                 .clip(CircleShape)
                 .background(buttonColor)
                 .clickable(enabled = clickable, onClick = if (showStop) onStop else onSend),
@@ -1461,6 +1485,13 @@ internal fun ErrorBubble(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
                 )
+                ExpandableChevronIcon(
+                    expanded = expanded,
+                    contentDescription = if (expanded) stringResource(R.string.common_collapse) else stringResource(R.string.common_expand),
+                    tint = Brand.IconGray,
+                    size = 18.dp
+                )
+                Spacer(Modifier.width(Spacing.md))
                 IconButton(
                     onClick = {
                         copyScope.launch {
@@ -1477,12 +1508,6 @@ internal fun ErrorBubble(
                         modifier = Modifier.size(16.dp)
                     )
                 }
-                ExpandableChevronIcon(
-                    expanded = expanded,
-                    contentDescription = if (expanded) stringResource(R.string.common_collapse) else stringResource(R.string.common_expand),
-                    tint = Brand.IconGray,
-                    size = 18.dp
-                )
                 if (onDismiss != null) {
                     IconButton(
                         onClick = onDismiss,

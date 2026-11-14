@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.aiverse.R
 import com.aiverse.core.theme.LocalUIDensityTokens
+import com.aiverse.core.ui.RoleAvatar
 import com.aiverse.feature.agent.domain.model.Role
 import com.aiverse.feature.agent.presentation.component.MarkdownContent
 

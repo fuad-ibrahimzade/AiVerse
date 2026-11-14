@@ -67,7 +67,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -102,6 +101,7 @@ import com.aiverse.feature.settings.presentation.component.ModelLogoIcon
 import com.aiverse.feature.settings.presentation.component.welcomeEntryVectorIcon
 import com.aiverse.core.ui.AppTextField
 import com.aiverse.core.ui.PressableSurface
+import com.aiverse.core.ui.RoleAvatar
 import com.aiverse.core.ui.dialogTextFieldColors
 import com.aiverse.feature.settings.data.remote.ModelTestResult
 import com.aiverse.feature.settings.domain.model.AIProviderConfig
@@ -202,12 +202,17 @@ internal fun ChatHeader(
                     Spacer(modifier = Modifier.width(Spacing.sm))
                 }
                 Column(modifier = Modifier.weight(1f)) {
+                    val hyperOS = LocalHyperOSStyle.current
+                    val t = LocalUIDensityTokens.current
                     // 点标题弹出「重命名会话」对话框：按容器圆角裁剪高亮，不再方块溢出。
                     if (sessionId != null && onRenameSession != null) {
                         PressableSurface(
                             onClick = { showRenameDialog = true },
                             shape = RoundedCornerShape(Radius.sm),
-                            contentPadding = PaddingValues(horizontal = Spacing.sm, vertical = Spacing.xs)
+                            contentPadding = PaddingValues(
+                                horizontal = if (hyperOS) Spacing.sm else Spacing.xs,
+                                vertical = Spacing.xs
+                            )
                         ) {
                             Text(
                                 text = sessionTitle,
@@ -226,7 +231,6 @@ internal fun ChatHeader(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    val hyperOS = LocalHyperOSStyle.current
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
@@ -235,24 +239,24 @@ internal fun ChatHeader(
                     RoleSwitcherPill(currentRole = currentRole, onClick = onOpenRoleSwitcher)
                     if (hyperOS) {
                         Surface(
-                            shape = RoundedCornerShape(50),
+                            shape = RoundedCornerShape(Radius.pill),
                             color = MaterialTheme.colorScheme.surface,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                            border = BorderStroke(t.scale(1), MaterialTheme.colorScheme.outlineVariant)
                         ) {
                             // 点击高亮裁剪进 pill 圆角，不再方块溢出容器。
                             PressableSurface(
                                 onClick = { showModelSheet = true },
                                 enabled = onSelectModel != null,
-                                shape = RoundedCornerShape(50),
+                                shape = RoundedCornerShape(Radius.pill),
                                 contentAlignment = Alignment.CenterStart
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    modifier = Modifier.padding(horizontal = t.sm, vertical = t.xs),
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(t.xs)
                                 ) {
                                     if (!modelName.isNullOrBlank()) {
-                                        ModelLogoIcon(modelName = modelName, size = 12.dp)
+                                        ModelLogoIcon(modelName = modelName, size = t.scale(12))
                                     }
                                     Text(
                                         text = modelName?.takeIf { it.isNotBlank() }
@@ -278,7 +282,7 @@ internal fun ChatHeader(
                                 horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
                             ) {
                                 if (!modelName.isNullOrBlank()) {
-                                    ModelLogoIcon(modelName = modelName, size = 14.dp)
+                                    ModelLogoIcon(modelName = modelName, size = t.scale(14))
                                 }
                                 Text(
                                     text = modelName?.takeIf { it.isNotBlank() } ?: stringResource(R.string.chat_no_model_selected),
@@ -832,7 +836,6 @@ internal fun WelcomeState(
             Image(
                 painter = painterResource(R.drawable.ic_launcher_monochrome),
                 contentDescription = null,
-                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
                 modifier = Modifier.size(60.dp)
             )
             Text(

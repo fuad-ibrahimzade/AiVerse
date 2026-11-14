@@ -179,7 +179,7 @@ internal fun LazyGroupItem(
         bottomEnd = if (index == lastIndex) corner else 0.dp
     )
     val borderColor = glassBorderOr(MaterialTheme.semanticColors.surfaceGlassBorder)
-    val borderWidth = 1.dp
+    val borderWidth = t.scale(1)
     Column(
         modifier = modifier
             .fillMaxWidth()

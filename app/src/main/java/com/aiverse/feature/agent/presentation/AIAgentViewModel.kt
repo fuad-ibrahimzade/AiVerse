@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import android.os.PowerManager
+import android.os.SystemClock
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -421,6 +422,9 @@ class AIAgentViewModel @Inject constructor(
     val optimizeEvents: SharedFlow<OptimizeEvent> = _optimizeEvents.asSharedFlow()
     /** 最近一次成功回填前的旧草稿，供「撤销」恢复。 */
     private var lastOptimizedOriginal: String? = null
+    /** 是否存在可撤销的「优化输入」回填：为 true 时输入栏常驻显示撤销小按钮（不再用成功 Snackbar）。 */
+    private val _canUndoOptimize = MutableStateFlow(false)
+    val canUndoOptimize: StateFlow<Boolean> = _canUndoOptimize.asStateFlow()
 
     /**
      * 「优化输入」：把当前输入框草稿交给模型润色后回填（空草稿不发请求，失败保留原文本）。
@@ -434,12 +438,41 @@ class AIAgentViewModel @Inject constructor(
         optimizeJob?.cancel()
         _isOptimizing.value = true
         optimizeJob = viewModelScope.launch {
+            // 流式回填：模型逐字吐增量，这里累积并以 ~60ms 窗口节流后写草稿，避免每次增量都 apply 磁盘
+            //（仿 StatefulAgentWorkflow.StreamAccumulator.DELTA_THROTTLE_MS）。
+            val streamed = StringBuilder()
+            var pendingDraft: String? = null
+            var lastEmitAt = 0L
+            fun flushDraft() {
+                val t = pendingDraft ?: return
+                pendingDraft = null
+                updateInputDraft(t)
+            }
+            val onDelta: suspend (String) -> Unit = { delta ->
+                if (delta.isEmpty()) {
+                    // 重试/换 Key 会从零重放：清空累积缓冲（含节流待发），让新流从头覆盖；
+                    // 不清空输入框——重试最终失败时保留最后一次推送的文本，不把草稿清掉。
+                    streamed.setLength(0)
+                    pendingDraft = null
+                    lastEmitAt = 0L
+                } else {
+                    streamed.append(delta)
+                    pendingDraft = streamed.toString()
+                    val now = SystemClock.elapsedRealtime()
+                    if (now - lastEmitAt >= OPTIMIZE_DELTA_THROTTLE_MS) {
+                        flushDraft()
+                        lastEmitAt = now
+                    }
+                }
+            }
             try {
-                when (val result = agentWorkflow.optimizeInput(id, text)) {
+                when (val result = agentWorkflow.optimizeInput(id, text, onDelta)) {
                     is OptimizeResult.Success -> {
+                        // 以权威全文兜底回填一次：节流窗口内可能还压着最新增量，确保最终与模型输出一致。
                         lastOptimizedOriginal = text
+                        _canUndoOptimize.value = true
                         updateInputDraft(result.text)
-                        _optimizeEvents.tryEmit(OptimizeEvent.Success)
+                        // 成功不再弹「已优化」Snackbar：撤销改为输入栏常驻小按钮（见 canUndoOptimize）。
                     }
                     OptimizeResult.NoChange -> Unit // 无实质改动，不打扰
                 }
@@ -465,11 +498,13 @@ class AIAgentViewModel @Inject constructor(
     /** 撤销最近一次「优化输入」回填，恢复被覆盖的旧草稿。 */
     fun undoOptimize() {
         val original = lastOptimizedOriginal ?: return
+        _canUndoOptimize.value = false
         updateInputDraft(original)
     }
 
     fun clearInputDraft() {
         val id = _currentSessionId.value ?: return
+        _canUndoOptimize.value = false
         _inputDrafts.value = _inputDrafts.value - id
         draftPrefs.edit().remove(id).apply()
     }
@@ -1830,6 +1865,9 @@ class AIAgentViewModel @Inject constructor(
 
         /** 会话目标文本长度上限，避免 system 提示词过长。 */
         const val MAX_GOAL_CHARS = 2000
+
+        /** 流式优化输入的增量节流窗口：模型逐字吐、这里合并后再写草稿（仿 StreamAccumulator.DELTA_THROTTLE_MS）。 */
+        const val OPTIMIZE_DELTA_THROTTLE_MS = 60L
 
         /** goal 自主循环连续空回合阈值：达到即置 BLOCKED（借鉴 Codex 的空响应熔断）。 */
         const val MAX_GOAL_EMPTY_TURNS = 3

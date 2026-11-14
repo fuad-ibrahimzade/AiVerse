@@ -1,6 +1,5 @@
 package com.aiverse.feature.agent.presentation.component
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -26,27 +24,19 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
-import coil.compose.AsyncImage
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.Check
 import compose.icons.feathericons.Settings
-import compose.icons.feathericons.User
 import com.aiverse.R
 import com.aiverse.core.theme.LocalUIDensityTokens
-import com.aiverse.core.theme.Radius
 import com.aiverse.core.theme.Spacing
 import com.aiverse.core.ui.AdaptiveModalBottomSheet
 import com.aiverse.core.ui.PressableSurface
-import com.aiverse.feature.agent.domain.model.AvatarKind
+import com.aiverse.core.ui.RoleAvatar
 import com.aiverse.feature.agent.domain.model.Role
-import java.io.File
 
 /**
  * 角色切换底部抽屉（issue #110）：列出默认角色 + 所有启用角色，
@@ -190,60 +180,6 @@ private fun RoleSheetRow(
                     modifier = Modifier.size(t.scale(20))
                 )
             }
-        }
-    }
-}
-
-/**
- * 角色头像：按 [Role.avatarKind] 呈现。
- * - EMOJI：居中渲染 emoji 字符；
- * - IMAGE：coil 异步加载本地图片（缩略圆角）；
- * - NONE：通用用户图标。
- * 供顶栏角色入口与抽屉行共用。
- */
-@Composable
-internal fun RoleAvatar(
-    role: Role?,
-    size: Dp,
-    modifier: Modifier = Modifier
-) {
-    when (role?.avatarKind) {
-        AvatarKind.EMOJI -> {
-            Box(
-                modifier = modifier
-                    .size(size)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (role.avatarValue.isNotBlank()) {
-                    Text(
-                        text = role.avatarValue,
-                        fontSize = with(LocalDensity.current) { (size * 0.62f).toSp() },
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-        AvatarKind.IMAGE -> {
-            if (role.avatarValue.isNotBlank()) {
-                AsyncImage(
-                    model = File(role.avatarValue),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = modifier
-                        .size(size)
-                        .clip(RoundedCornerShape(Radius.sm))
-                )
-            }
-        }
-        else -> {
-            Icon(
-                imageVector = FeatherIcons.User,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = modifier.size(size)
-            )
         }
     }
 }

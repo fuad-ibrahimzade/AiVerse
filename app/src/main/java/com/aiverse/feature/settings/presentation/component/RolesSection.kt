@@ -28,14 +28,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
-import coil.compose.AsyncImage
 import com.aiverse.R
 import com.aiverse.core.theme.LocalUIDensityTokens
 import com.aiverse.core.theme.semanticColors
@@ -46,13 +43,12 @@ import com.aiverse.core.ui.SelectionActionBar
 import com.aiverse.core.ui.SelectionActionButton
 import com.aiverse.core.ui.SelectionActionIconButton
 import com.aiverse.core.ui.SwipeToDeleteRow
+import com.aiverse.core.ui.RoleAvatar
 import com.aiverse.core.ui.selectionListBottomContentPadding
-import com.aiverse.feature.agent.domain.model.AvatarKind
 import com.aiverse.feature.agent.domain.model.Role
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.ChevronRight
 import compose.icons.feathericons.Trash2
-import compose.icons.feathericons.User
 
 /**
  * 角色管理页：角色列表。
@@ -182,8 +178,7 @@ private fun RoleList(
             end = t.lg,
             top = t.xs,
             bottom = selectionListBottomContentPadding(selection.isActive)
-        ),
-        verticalArrangement = Arrangement.spacedBy(t.listCellGap)
+        )
     ) {
         itemsIndexed(
             items = roles,
@@ -289,62 +284,6 @@ private fun RoleRow(
                     checked = role.enabled,
                     onCheckedChange = onToggleEnabled,
                     modifier = Modifier.semantics { contentDescription = toggleDescription }
-                )
-            }
-        }
-    }
-}
-
-/** 角色头像：EMOJI 渲染 emoji 字符，IMAGE 用 coil 异步加载，NONE 用默认人像图标。 */
-@Composable
-internal fun RoleAvatar(role: Role, size: Dp) {
-    val t = LocalUIDensityTokens.current
-    Box(
-        modifier = Modifier
-            .size(size)
-            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(t.rSm)),
-        contentAlignment = Alignment.Center
-    ) {
-        when (role.avatarKind) {
-            AvatarKind.EMOJI -> {
-                if (role.avatarValue.isNotBlank()) {
-                    Text(
-                        text = role.avatarValue,
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1
-                    )
-                } else {
-                    Icon(
-                        imageVector = FeatherIcons.User,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(size * 0.5f)
-                    )
-                }
-            }
-            AvatarKind.IMAGE -> {
-                if (role.avatarValue.isNotBlank()) {
-                    AsyncImage(
-                        model = role.avatarValue,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Icon(
-                        imageVector = FeatherIcons.User,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(size * 0.5f)
-                    )
-                }
-            }
-            AvatarKind.NONE -> {
-                Icon(
-                    imageVector = FeatherIcons.User,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(size * 0.5f)
                 )
             }
         }

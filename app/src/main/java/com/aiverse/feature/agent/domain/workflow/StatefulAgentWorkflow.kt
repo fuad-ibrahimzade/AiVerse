@@ -1211,7 +1211,11 @@ class StatefulAgentWorkflow @Inject constructor(
      * 输入为空或模型返回空文本返回 [OptimizeResult.NoChange]；润色成功返回 [OptimizeResult.Success]。
      * 请求失败通过异常上抛（调用方捕获后转为用户提示），不在此静默。
      */
-    override suspend fun optimizeInput(sessionId: String, text: String): OptimizeResult {
+    override suspend fun optimizeInput(
+        sessionId: String,
+        text: String,
+        onDelta: suspend (String) -> Unit
+    ): OptimizeResult {
         if (text.isBlank()) return OptimizeResult.NoChange
         val provider = resolveOptimizeFallbackProvider(sessionId) ?: getEffectiveProvider(sessionId)
         val prompt = promptProvider.resolvePrompt(OPTIMIZE_INPUT_FILE)
@@ -1220,19 +1224,41 @@ class StatefulAgentWorkflow @Inject constructor(
         val callStartElapsed = SystemClock.elapsedRealtime()
         var callCompleted = false
         var callError: String? = null
-        var usage: AIResponse? = null
-        val response = try {
-            val resp = provider.complete(
+        var finalResponse: AIResponse? = null
+        // 流式增量经 onDelta 逐字推给调用方回填输入框；这里再累积一份本地文本，作为 Final 缺失时的兜底
+        //（同 executeEvents 里 StreamAccumulator.text 的用法）。重试/换 Key 会从零重放流，必须清空本地累积，
+        // 并通过 onDelta("") 通知调用方清空其累积缓冲，否则重试后新旧 delta 拼接错乱。
+        val streamed = StringBuilder()
+        try {
+            provider.completeStream(
                 systemPrompt = prompt,
                 messages = listOf(
                     AgentMessage.UserMessage(content = "Draft prompt to enhance, not answer:\n$text")
                 ),
                 tools = emptyList(),
                 reasoningEffort = ReasoningEffort.NONE.apiValue
-            )
-            usage = resp
+            ).collect { chunk ->
+                when (chunk) {
+                    is AIStreamChunk.TextDelta -> {
+                        streamed.append(chunk.text)
+                        onDelta(chunk.text)
+                    }
+                    is AIStreamChunk.ReasoningDelta -> Unit // 优化输入只关心正文，思考不展示
+                    is AIStreamChunk.Retrying -> {
+                        // 重试会从零重放：清空本地累积并通知调用方清空其累积缓冲，避免新旧文本拼接。
+                        streamed.setLength(0)
+                        onDelta("")
+                    }
+                    is AIStreamChunk.KeySwitched -> {
+                        // 换 Key 会从零重放：同上。
+                        streamed.setLength(0)
+                        onDelta("")
+                    }
+                    is AIStreamChunk.Final -> finalResponse = chunk.response
+                    is AIStreamChunk.ToolCallDeclared -> Unit // 优化输入不会产生工具调用
+                }
+            }
             callCompleted = true
-            resp
         } catch (e: CancellationException) {
             callError = "cancelled"
             throw e
@@ -1242,6 +1268,7 @@ class StatefulAgentWorkflow @Inject constructor(
             throw e
         } finally {
             val durationMillis = (SystemClock.elapsedRealtime() - callStartElapsed).toInt()
+            val usage = finalResponse
             runCatching {
                 llmCallRecordDao.insert(
                     LlmCallRecordEntity(
@@ -1263,7 +1290,7 @@ class StatefulAgentWorkflow @Inject constructor(
                 )
             }
         }
-        val result = response.content.trim()
+        val result = (finalResponse?.content ?: streamed.toString()).trim()
         return if (result.isNotBlank()) OptimizeResult.Success(result) else OptimizeResult.NoChange
     }
 

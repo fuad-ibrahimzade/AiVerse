@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -731,10 +732,12 @@ internal fun ReasoningBubble(
         else -> stringResource(R.string.chat_thinking_done)
     }
     Column(modifier = Modifier.fillMaxWidth()) {
+        val t = LocalUIDensityTokens.current
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 28.dp)
+                .heightIn(min = t.chipHeight)
+                .clip(RoundedCornerShape(t.chipCorner))
                 .clickable { toggleExpanded(!expanded) },
             verticalAlignment = Alignment.CenterVertically
         ) {

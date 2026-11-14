@@ -54,7 +54,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -1178,22 +1177,14 @@ fun AIChatPanel(
         }
     }
 
-    // 「优化输入」状态与一次性事件：按钮 loading/停止态 + 成功（可撤销）/失败 Snackbar。
+    // 「优化输入」状态与一次性事件：按钮 loading/停止态 + 失败 Snackbar（成功改为输入栏常驻撤销小按钮，见 canUndoOptimize）。
     val isOptimizing by viewModel.isOptimizing.collectAsStateWithLifecycle()
     val optimizeSnackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(Unit) {
         viewModel.optimizeEvents.collect { event ->
             when (event) {
-                OptimizeEvent.Success -> {
-                    val action = optimizeSnackbarHostState.showSnackbar(
-                        message = context.getString(R.string.chat_optimize_success),
-                        actionLabel = context.getString(R.string.chat_optimize_undo),
-                        duration = SnackbarDuration.Short
-                    )
-                    if (action == SnackbarResult.ActionPerformed) {
-                        viewModel.undoOptimize()
-                    }
-                }
+                // 成功不再用 Snackbar：撤销改为输入栏常驻小按钮（见 canUndoOptimize），此处仅兜底消费事件。
+                OptimizeEvent.Success -> Unit
                 is OptimizeEvent.Failure -> {
                     optimizeSnackbarHostState.showSnackbar(
                         message = context.getString(R.string.chat_optimize_failed),
@@ -2342,6 +2333,8 @@ fun AIChatPanel(
                 onOptimizeInput = { viewModel.optimizeInput() },
                 onCancelOptimize = { viewModel.cancelOptimize() },
                 isOptimizing = isOptimizing,
+                canUndoOptimize = viewModel.canUndoOptimize.collectAsStateWithLifecycle().value,
+                onUndoOptimize = { viewModel.undoOptimize() },
                 onOpenOptimizeModelSettings = onOpenOptimizeModelSettings,
                 onOpenInEditor = onOpenInEditor,
                 // 主页模型弹层的「测试」按钮：直接复用设置页的连通性测试链路，状态由弹层自己持有。
