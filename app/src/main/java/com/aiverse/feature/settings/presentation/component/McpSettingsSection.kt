@@ -135,8 +135,7 @@ internal fun McpSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(),
-            contentPadding = PaddingValues(start = Spacing.md, end = Spacing.md, bottom = selectionListBottomContentPadding(selection.isActive)),
-            verticalArrangement = Arrangement.spacedBy(t.listCellGap)
+            contentPadding = PaddingValues(start = Spacing.md, end = Spacing.md, bottom = selectionListBottomContentPadding(selection.isActive))
         ) {
             if (entries.size >= 3) {
                 item(key = "search", contentType = "search") {
@@ -144,7 +143,8 @@ internal fun McpSection(
                         query = searchQuery,
                         onQueryChange = { searchQuery = it },
                         placeholder = stringResource(R.string.mcp_search_placeholder),
-                        modifier = Modifier.padding(bottom = Spacing.xs)
+                        // 去掉列表 arrangedBy 后，搜索框与下方卡片之间只剩这点间距，取 sm 维持呼吸感
+                        modifier = Modifier.padding(bottom = Spacing.sm)
                     )
                 }
             }

@@ -3,7 +3,6 @@ package com.aiverse.feature.settings.presentation.component
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,6 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.unit.Dp
 import com.aiverse.core.ui.ChevronRotationStyle
 import com.aiverse.core.ui.ExpandableChevronIcon
 import androidx.compose.ui.graphics.Color
@@ -156,7 +158,9 @@ internal fun SettingsGroup(
  *
  * 技能 / 子代理这类列表条目数不可控（项目里可能有上百个），必须走 LazyColumn 逐项虚拟化，
  * 只组合可见行；卡片外观靠这里的首尾圆角拼出来，视觉与 [SettingsGroup] 一致。
- * 磨砂铺开：背景改为半透明玻璃表面色 + 1dp 玻璃描边（圆角跟随首尾 shape）。
+ * 磨砂铺开：背景改为半透明玻璃表面色 + 组级外描边（圆角跟随首尾 shape）。
+ * 描边按组拼：首项画顶边、末项画底边、左右两边始终连续，相邻行首尾相接后合成一整圈外框，
+ * 不再逐格画完整描边（否则相邻行的底边 + 顶边各 1dp 半透明玻璃线叠加成深色横线，issue #114）。
  * 保守取舍：不逐项加阴影（LazyColumn 分段卡片阴影会与分隔线叠加、绘制成本高）。
  */
 @Composable
@@ -174,16 +178,59 @@ internal fun LazyGroupItem(
         bottomStart = if (index == lastIndex) corner else 0.dp,
         bottomEnd = if (index == lastIndex) corner else 0.dp
     )
+    val borderColor = glassBorderOr(MaterialTheme.semanticColors.surfaceGlassBorder)
+    val borderWidth = 1.dp
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
             .background(glassOr(MaterialTheme.semanticColors.surfaceGlass, MaterialTheme.semanticColors.cardSurface))
-            .border(1.dp, glassBorderOr(MaterialTheme.semanticColors.surfaceGlassBorder), shape)
+            // 描边在 clip/background 之后再画：线中心落在行边界、内半边可见，与原逐格 .border() 视觉一致；
+            // 圆角行上超出色板弯角的部分被 clip 自然裁掉。
+            .then(if (index == 0) Modifier.drawTopBorder(borderColor, borderWidth) else Modifier)
+            .then(if (index == lastIndex) Modifier.drawBottomBorder(borderColor, borderWidth) else Modifier)
+            .drawHorizontalBorders(borderColor, borderWidth)
     ) {
         content()
         if (index != lastIndex) SettingsDivider()
     }
+}
+
+/** 在行区域顶部画一条横贯描边（组级外框的顶边）。 */
+private fun Modifier.drawTopBorder(color: Color, width: Dp): Modifier = drawBehind {
+    drawLine(
+        color = color,
+        start = Offset(0f, 0f),
+        end = Offset(size.width, 0f),
+        strokeWidth = width.toPx()
+    )
+}
+
+/** 在行区域底部画一条横贯描边（组级外框的底边）。 */
+private fun Modifier.drawBottomBorder(color: Color, width: Dp): Modifier = drawBehind {
+    drawLine(
+        color = color,
+        start = Offset(0f, size.height),
+        end = Offset(size.width, size.height),
+        strokeWidth = width.toPx()
+    )
+}
+
+/** 沿行区域左右两边各画一条贯通竖描边（组级外框的侧边，逐行连续）。 */
+private fun Modifier.drawHorizontalBorders(color: Color, width: Dp): Modifier = drawBehind {
+    val half = width.toPx() / 2f
+    drawLine(
+        color = color,
+        start = Offset(half, 0f),
+        end = Offset(half, size.height),
+        strokeWidth = width.toPx()
+    )
+    drawLine(
+        color = color,
+        start = Offset(size.width - half, 0f),
+        end = Offset(size.width - half, size.height),
+        strokeWidth = width.toPx()
+    )
 }
 
 /**

@@ -78,6 +78,8 @@ private const val OTHER_SENTINEL = "\u0000__other__"
  * @param onConfirm 用户点击确认后回传答案。
  * @param onSkip 用户点击「补充」，返回空答案——表示用户想补充说明而非在预设选项中做选择。
  * @param onIgnore 用户点击「忽略」，直接结束本次提问，工具以「被忽略」语义结束。
+ * @param sessionTitle 发起提问的会话标题，多会话并行时标注归属；空串不展示。
+ * @param forceCollapse true 时同帧收起面板（余额面板展开时避免叠加顶开输入框）。
  */
 @Composable
 fun AskUserQuestionPanel(
@@ -85,6 +87,7 @@ fun AskUserQuestionPanel(
     onConfirm: (UserQuestionAnswer) -> Unit,
     onSkip: () -> Unit,
     onIgnore: () -> Unit,
+    sessionTitle: String = "",
     forceCollapse: Boolean = false
 ) {
     // 每个问题的已选 label 集合
@@ -132,20 +135,23 @@ fun AskUserQuestionPanel(
                         .background(MaterialTheme.colorScheme.tertiary)
                 )
                 Spacer(Modifier.width(Spacing.sm))
-                Text(
-                    text = stringResource(R.string.ask_confirm_title),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "askUserQuestion",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.ask_confirm_title),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (sessionTitle.isNotBlank()) {
+                        Text(
+                            text = stringResource(R.string.chat_perm_session_label, sessionTitle),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
                 Spacer(Modifier.width(Spacing.xs))
                 ExpandableChevronIcon(
                     expanded = expanded,

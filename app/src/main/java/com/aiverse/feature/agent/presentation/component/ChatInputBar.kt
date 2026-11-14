@@ -159,7 +159,7 @@ private const val INPUT_BAR_MASK_HEIGHT_BASE_DP = 110
 
 /** 输入框高度标准档基准上下限（裸 dp）：超过上限后文本在框内滚动。与 TextField 的 heightIn 一致。
  *  实际值在 [ChatInputBar] 内按密度令牌缩放。 */
-private const val INPUT_FIELD_MIN_HEIGHT_BASE_DP = 44
+private const val INPUT_FIELD_MIN_HEIGHT_BASE_DP = 36
 private const val INPUT_FIELD_MAX_HEIGHT_BASE_DP = 140
 
 /**
@@ -562,7 +562,9 @@ internal fun ChatInputBar(
                 )
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.xs),
                     verticalAlignment = Alignment.Top
                 ) {
                     TextField(
@@ -620,7 +622,7 @@ internal fun ChatInputBar(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = Spacing.xs, vertical = Spacing.xs),
+                        .padding(vertical = Spacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
@@ -1190,8 +1192,7 @@ internal fun SendButton(
     }
     Box(
         modifier = Modifier
-            .padding(Spacing.xs)
-            .size(44.dp)
+            .size(36.dp)
             .clip(CircleShape),
         contentAlignment = Alignment.Center
     ) {

@@ -173,17 +173,28 @@ internal fun shouldShowToolPreparation(
     awaitingUserInput: Boolean,
 ): Boolean = preparingTool != null && isBusy && !isCompacting && !awaitingUserInput
 
-/** 悬浮层（横幅/面板/输入框）与最后一条消息的间距。 */
-private val FLOATING_LAYER_GAP_DP = 8.dp
-
 /** 内容底部驱动校准的容差（px）：最后内容底部超出安全区超过该值才向下校准，避免亚像素抖动。 */
 private const val AUTO_SCROLL_TOLERANCE_PX = 2
 
 /** AI 收工后继续逐帧校准的时长（ms）：md 异步解析仍可能改高度，不能一停就收手。 */
 private const val CALIBRATE_TAIL_MS = 1_200L
 
-/** 滚动到底部按钮直径（dp）。 */
-private const val SCROLL_TO_BOTTOM_BTN_SIZE = 34
+/** 滚动到底部按钮直径（dp 基准，经 UIDensity 档缩放后使用）。 */
+private const val SCROLL_TO_BOTTOM_BTN_SIZE_DP = 34
+
+/** 滚动到底部按钮内图标的边长（dp 基准，经 UIDensity 档缩放后使用）。 */
+private const val SCROLL_TO_BOTTOM_ICON_SIZE_DP = 20
+
+/** 滚动到底部按钮描边宽度（dp 基准，经 UIDensity 档缩放后使用）。 */
+private const val SCROLL_TO_BOTTOM_BORDER_DP = 1
+
+/**
+ * 会话流末尾恒久挂载的尾部 item 数：__error_trailing__ / __permission__ / __question__ /
+ * __plan__ / __active__。它们与 itemsIndexed(chatItems) 一起构成 LazyColumn 的全部 item，
+ * 故列表实际 item 数恒为 chatItems.size + 本值。回底按钮的门槛判定据此校验 totalItemsCount，
+ * 在此挂新尾部 item 时必须同步本值。
+ */
+private const val TRAILING_ITEM_COUNT = 5
 
 /** 连续新消息的入场错开间隔（ms）与总上限：一次插入很多卡片时不能让最后一张等好几秒。 */
 private const val MESSAGE_ENTRY_STAGGER_MS = 90L
@@ -797,6 +808,7 @@ fun AIChatPanel(
     val pendingPermission = allPendingPermission
     val pendingPermissionSessionTitle by viewModel.pendingToolPermissionSessionTitle.collectAsStateWithLifecycle()
     val pendingQuestion by viewModel.pendingUserQuestion.collectAsStateWithLifecycle()
+    val pendingQuestionSessionTitle by viewModel.pendingUserQuestionSessionTitle.collectAsStateWithLifecycle()
     val planApproval by viewModel.pendingPlanApproval.collectAsStateWithLifecycle()
     val currentTodoItems by viewModel.currentSessionTodoItems.collectAsStateWithLifecycle()
     val queuedRequests by viewModel.queuedRequests.collectAsStateWithLifecycle()
@@ -874,7 +886,8 @@ fun AIChatPanel(
     val inputBarBottomReserveDp = 156.dp
     var floatingLayerHeightPx by remember { mutableStateOf(0) }
     val inputBarReservePx = with(LocalDensity.current) {
-        (if (floatingLayerHeightPx > 0) floatingLayerHeightPx + FLOATING_LAYER_GAP_DP.toPx()
+        val floatingGapPx = LocalUIDensityTokens.current.sm.toPx()
+        (if (floatingLayerHeightPx > 0) floatingLayerHeightPx + floatingGapPx
         else inputBarBottomReserveDp.toPx()).toInt()
     }
     val markdownCache = remember { MarkdownRenderCache() }
@@ -1480,7 +1493,7 @@ fun AIChatPanel(
             val layout = listState.layoutInfo
             val lastVisible = layout.visibleItemsInfo.lastOrNull()
                 ?: return@derivedStateOf false
-            if (layout.totalItemsCount != chatItems.size + 1) return@derivedStateOf false
+            if (layout.totalItemsCount != chatItems.size + TRAILING_ITEM_COUNT) return@derivedStateOf false
             if (lastVisible.index < layout.totalItemsCount - 1) return@derivedStateOf true
             val safeBottom = layout.viewportEndOffset - inputBarReservePx
             (lastVisible.offset + lastVisible.size) - safeBottom > layout.viewportEndOffset / 2
@@ -1587,6 +1600,20 @@ fun AIChatPanel(
         snapshotFlow {
             Triple(streamingText?.length, streamingReasoning?.length, latestMessageCount.value)
         }.collect { calibrateToAnchor() }
+    }
+
+    // 键盘几何变化信号旁路：键盘弹起/收起会改变视口高度，但常驻校准循环的激活信号只看
+    // busy / 拖拽，非输出态（键盘弹起时往往 idle）不会启动，视口变矮就把最后内容挤出安全区、
+    // 内容被顶到输入框之下。故只在 imeVisible 出现/消失的那一拍触发一次校准，不常驻运行。
+    // 前提保护：仅当原本在跟随（停在末尾附近）时才拉回锚点，正在翻历史（followBottom=false）
+    // 的用户不会被键盘强行拽回底部。
+    LaunchedEffect(listState, messagesReady) {
+        if (!messagesReady) return@LaunchedEffect
+        snapshotFlow { imeVisible }
+            .distinctUntilChanged()
+            .collect {
+                if (followBottom && !userScrollGesture) calibrateToAnchor()
+            }
     }
 
     val sendMessage: () -> Unit = {
@@ -2050,7 +2077,13 @@ fun AIChatPanel(
                             }
                         }
                         item(key = "__question__", contentType = "blockingPanel") {
-                            val questionForPanel = rememberLastNonNull(pendingQuestion)
+                            // pendingQuestion 已由 ViewModel 按 currentSessionId 过滤（当前会话队首问题）。
+                            // 显示内容按 question.id 去重（[rememberLastNonNullKeyed]），
+                            // 避免 resolve 后的退出动画期间快速写入下一道问题时复用旧内容反复弹。
+                            val questionForPanel = rememberLastNonNullKeyed(
+                                key = pendingQuestion?.id,
+                                value = pendingQuestion
+                            )
                             androidx.compose.animation.AnimatedVisibility(
                                 visible = pendingQuestion != null,
                                 enter = fadeIn(tween(220)) + expandVertically(tween(220)),
@@ -2059,21 +2092,32 @@ fun AIChatPanel(
                                 questionForPanel?.let { question ->
                                     AskUserQuestionPanel(
                                         question = question,
-                                        onConfirm = { answer -> viewModel.resolveUserQuestion(question.id, answer) },
+                                        onConfirm = { answer ->
+                                            // 面板可能在退出动画中仍短暂展示已消费的旧问题：
+                                            // 仅当它仍是当前会话队首时才回传答案，防止误答下一道或他会话的问题。
+                                            if (pendingQuestion?.id == question.id) {
+                                                viewModel.resolveUserQuestion(question.id, answer)
+                                            }
+                                        },
                                         // 「补充」：未选预设选项，稍后补充——保持 SUPPLEMENT 语义
                                         onSkip = {
-                                            viewModel.resolveUserQuestion(
-                                                question.id,
-                                                UserQuestionAnswer(emptyList(), QuestionResolution.SUPPLEMENT)
-                                            )
+                                            if (pendingQuestion?.id == question.id) {
+                                                viewModel.resolveUserQuestion(
+                                                    question.id,
+                                                    UserQuestionAnswer(emptyList(), QuestionResolution.SUPPLEMENT)
+                                                )
+                                            }
                                         },
                                         // 「忽略」：直接结束本次提问，工具以「被忽略」语义结束
                                         onIgnore = {
-                                            viewModel.resolveUserQuestion(
-                                                question.id,
-                                                UserQuestionAnswer(emptyList(), QuestionResolution.IGNORED)
-                                            )
+                                            if (pendingQuestion?.id == question.id) {
+                                                viewModel.resolveUserQuestion(
+                                                    question.id,
+                                                    UserQuestionAnswer(emptyList(), QuestionResolution.IGNORED)
+                                                )
+                                            }
                                         },
+                                        sessionTitle = pendingQuestionSessionTitle,
                                         forceCollapse = dashboardCollapseActive
                                     )
                                 }
@@ -2318,7 +2362,9 @@ fun AIChatPanel(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = Spacing.lg)
-                    .padding(bottom = with(LocalDensity.current) { (floatingLayerHeightPx + FLOATING_LAYER_GAP_DP.toPx()).toDp() })
+                    .padding(bottom = with(LocalDensity.current) {
+                        (floatingLayerHeightPx + LocalUIDensityTokens.current.sm.toPx()).toDp()
+                    })
                     .graphicsLayer { alpha = if (listState.isScrollInProgress) 0.4f else 1f },
                 enter = fadeIn() + scaleIn(),
                 exit = fadeOut() + scaleOut()
@@ -2437,6 +2483,27 @@ internal fun <T : Any> rememberLastNonNull(value: T?): T? {
 private class LastNonNullHolder<T : Any>(var value: T? = null)
 
 /**
+ * 按 key 记住最后一个非空值：key 未变时跨重组留住上一个值，key 变化则只接受新值。
+ *
+ * 用于源值在 null（退出动画）与新值之间快速切换的场景（如会话流内依次弹出的提问面板）：
+ * 不按 key 区分会让新值在旧值的退出动画里直接复用，表现为同一面板反复弹。
+ * key 为 null 表示当前无内容，持有值原样返回，供退出动画继续渲染。
+ */
+@Composable
+internal fun <K : Any, T : Any> rememberLastNonNullKeyed(key: K?, value: T?): T? {
+    val holder = remember { LastNonNullKeyedHolder<K, T>() }
+    if (value != null && key != null && holder.key == key) {
+        holder.value = value
+    } else if (value != null && key != null) {
+        holder.key = key
+        holder.value = value
+    }
+    return holder.value
+}
+
+private class LastNonNullKeyedHolder<K : Any, T : Any>(var key: K? = null, var value: T? = null)
+
+/**
  * 工具卡片入场动画的调度器：决定哪些消息该播入场、以及各自错开多久。
  *
  * 判据是「本调度器存续期间新追加到尾部」，而不是「timestamp 距今 N 秒内」——
@@ -2485,12 +2552,13 @@ private fun ScrollToBottomButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val t = LocalUIDensityTokens.current
     Surface(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        shadowElevation = 6.dp,
-        modifier = modifier.size(SCROLL_TO_BOTTOM_BTN_SIZE.dp)
+        border = BorderStroke(t.scale(SCROLL_TO_BOTTOM_BORDER_DP), MaterialTheme.colorScheme.outlineVariant),
+        shadowElevation = t.elevationSm,
+        modifier = modifier.size(t.scale(SCROLL_TO_BOTTOM_BTN_SIZE_DP))
     ) {
         // 按压反馈裁剪进圆形，不再方块溢出；点击区铺满整个圆形按钮。
         PressableSurface(
@@ -2503,7 +2571,7 @@ private fun ScrollToBottomButton(
                     imageVector = FeatherIcons.ArrowDown,
                     contentDescription = stringResource(R.string.common_scroll_to_bottom),
                     tint = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(t.scale(SCROLL_TO_BOTTOM_ICON_SIZE_DP))
                 )
             }
         }

@@ -102,6 +102,7 @@ import com.aiverse.feature.agent.domain.tool.mode.PlanApprovalChoice
 import com.aiverse.feature.agent.domain.tool.mode.PlanApprovalManager
 import com.aiverse.feature.agent.domain.tool.mode.PlanApprovalRequest
 import com.aiverse.feature.agent.domain.tool.question.AskUserQuestionManager
+import com.aiverse.feature.agent.domain.tool.question.PendingUserQuestion
 import com.aiverse.feature.agent.domain.tool.question.UserQuestionAnswer
 import com.aiverse.feature.agent.domain.session.SessionUseCase
 import com.aiverse.feature.agent.domain.session.MessagePersistenceUseCase
@@ -1646,7 +1647,30 @@ class AIAgentViewModel @Inject constructor(
     /** 正在等待用户授权的会话 id 集合，供侧边栏会话行点亮橙色指示灯。 */
     val awaitingPermissionSessionIds: StateFlow<Set<String>> = toolPermissionManager.awaitingSessionIds
 
-    val pendingUserQuestion = askUserQuestionManager.pendingQuestion
+    /** 当前展示的提问面板所属会话标题（多会话并行时供面板标注归属）。会话不存在时回退空串。 */
+    val pendingUserQuestionSessionTitle: StateFlow<String> = combine(
+        askUserQuestionManager.pendingQuestion,
+        sessions,
+        subSessionsByParent
+    ) { req, roots, subs ->
+        val sid = req?.sessionId.orEmpty()
+        if (sid.isBlank()) return@combine ""
+        val title = roots.firstOrNull { it.id == sid }?.title
+            ?: subs.values.asSequence().flatten().firstOrNull { it.id == sid }?.title
+        title.orEmpty()
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    /** 当前会话队首的待决问题；按 currentSessionId 过滤，只暴露属于本会话的问题，避免跨会话串扰。 */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val pendingUserQuestion: StateFlow<PendingUserQuestion?> = _currentSessionId
+        .flatMapLatest { sid ->
+            if (sid == null) flowOf(null)
+            else askUserQuestionManager.pendingQuestion.map { q -> q?.takeIf { it.sessionId == sid } }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** 正在等待用户回答问题的会话 id 集合，供侧边栏会话行点亮指示灯。 */
+    val awaitingQuestionSessionIds: StateFlow<Set<String>> = askUserQuestionManager.awaitingSessionIds
 
     private val _queuedRequests = MutableStateFlow<Map<String, List<QueuedRequest>>>(emptyMap())
     // 正在执行斜杠命令的会话集合：命令执行期间同样视为 busy（
@@ -1665,12 +1689,12 @@ class AIAgentViewModel @Inject constructor(
     /** 当前正阻塞等待用户审批的会话 id 集合（工具授权 / 提问 / 退出计划审批）。 */
     val approvalSessionIds: StateFlow<Set<String>> = combine(
         awaitingPermissionSessionIds,
-        askUserQuestionManager.pendingQuestion,
+        awaitingQuestionSessionIds,
         planApprovalManager.pendingApproval
-    ) { awaiting, question, plan ->
+    ) { awaiting, questionSids, plan ->
         buildSet {
             addAll(awaiting)
-            question?.sessionId?.takeIf { it.isNotBlank() }?.let { add(it) }
+            addAll(questionSids)
             plan?.sessionId?.takeIf { it.isNotBlank() }?.let { add(it) }
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
@@ -1877,10 +1901,10 @@ class AIAgentViewModel @Inject constructor(
         viewModelScope.launch {
             combine(
                 awaitingPermissionSessionIds,
-                askUserQuestionManager.pendingQuestion,
+                askUserQuestionManager.awaitingSessionIds,
                 planApprovalManager.pendingApproval,
                 toolPermissionManager.pendingRequest
-            ) { awaiting, question, plan, permission ->
+            ) { awaiting, questionSids, plan, permission ->
                 // 手机控制由悬浮确认窗（OverlayApprovalService）处理，不进后台审批通知。
                 val phoneControlSessionId = permission
                     ?.takeIf { it.toolName == ToolPermissionPolicyEngine.PHONE_CONTROL_TOOL }
@@ -1890,8 +1914,8 @@ class AIAgentViewModel @Inject constructor(
                     labels[it] = Triple(R.string.notification_approval_label_permission, ApprovalKind.PERMISSION,
                         permission?.takeIf { request -> request.sessionId == it }?.id)
                 }
-                question?.sessionId?.takeIf { it.isNotBlank() }?.let {
-                    labels.putIfAbsent(it, Triple(R.string.notification_approval_label_question, ApprovalKind.QUESTION, null))
+                questionSids.forEach { sid ->
+                    labels.putIfAbsent(sid, Triple(R.string.notification_approval_label_question, ApprovalKind.QUESTION, null))
                 }
                 plan?.sessionId?.takeIf { it.isNotBlank() }?.let {
                     labels.putIfAbsent(it, Triple(R.string.notification_approval_label_plan, ApprovalKind.PLAN, plan.id))

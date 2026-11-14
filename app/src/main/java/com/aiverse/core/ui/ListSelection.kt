@@ -144,9 +144,10 @@ fun SelectionToggleAction(selection: ListSelectionState, enabled: Boolean = true
 @Composable
 fun selectionActionBarHeight(): Dp = LocalUIDensityTokens.current.fieldHeight + Spacing.sm
 
-/** 普通页 / 仅多选栏页普通浏览的底部基础留白（随密度缩放）。 */
+/** 普通页 / 仅多选栏页普通浏览的底部基础留白（随密度缩放）。基础档取 lg：列表末尾多为整张圆角卡片，
+ *  24dp 观感偏空，降到 lg 在多选栏页也仍大于「多选态 xl + 操作栏高度」之外的安全余量。 */
 @Composable
-fun listBottomContentPadding(): Dp = LocalUIDensityTokens.current.xl
+fun listBottomContentPadding(): Dp = LocalUIDensityTokens.current.lg
 
 /** 仅多选栏页：多选激活时让位操作栏高度，否则统一基础留白（随密度缩放）。 */
 @Composable

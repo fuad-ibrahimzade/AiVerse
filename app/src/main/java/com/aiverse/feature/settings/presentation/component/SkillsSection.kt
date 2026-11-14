@@ -168,8 +168,7 @@ internal fun SkillsSection(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            contentPadding = PaddingValues(start = Spacing.md, end = Spacing.md, bottom = selectionListBottomContentPadding(selection.isActive)),
-            verticalArrangement = Arrangement.spacedBy(t.listCellGap)
+            contentPadding = PaddingValues(start = Spacing.md, end = Spacing.md, bottom = selectionListBottomContentPadding(selection.isActive))
         ) {
             item(key = "project-header", contentType = "header") {
                 CollapsibleGroupHeader(

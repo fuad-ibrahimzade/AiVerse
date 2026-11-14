@@ -679,7 +679,10 @@ fun AppNavigation(
     // 应用内音视频播放器（issue #91）：取源统一走 copyToLocal，远程 SSH 先整份下载。
     val drawerMediaViewerState = rememberMediaViewerState()
     val drawerMediaResolve = remember(agentViewModel.fileAccess) { mediaFileResolver(agentViewModel.fileAccess) }
-    val openTreeEntry: (String) -> Unit = { path ->
+    // 按文件类型打开路径：图片进内置查看器、音视频进播放器、APK 走系统安装器，其余进编辑器。
+    // 图片/音视频/APK 分支忽略 line，仅编辑器分支用它定位到目标行；fromDrawer 只影响窄窗下
+    // 编辑器返回时是否重新展开侧栏（侧边栏入口 true，聊天区链接 false）。
+    val openPathByType: (String, Int, Boolean) -> Unit = { path, line, fromDrawer ->
         val name = path.trimEnd('/').substringAfterLast('/')
         val ext = name.substringAfterLast('.', "").lowercase()
         val mediaKind = mediaKindOf(name)
@@ -704,8 +707,11 @@ fun AppNavigation(
                     agentViewModel.fileAccess
                 )
             }
-            else -> openFile(path, 0, true)
+            else -> openFile(path, line, fromDrawer)
         }
+    }
+    val openTreeEntry: (String) -> Unit = { path ->
+        openPathByType(path, 0, true)
     }
 
     // 终端 / Git：大屏在右栏内开合切换，窄窗跳全屏页。
@@ -875,7 +881,7 @@ fun AppNavigation(
                 val defaultUriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                 val fileUriHandler = remember(defaultUriHandler, expanded) {
                     FileAwareUriHandler(defaultUriHandler) { filePath, line ->
-                        openFile(filePath, line, false)
+                        openPathByType(filePath, line, false)
                     }
                 }
                 val paneOpen = expanded && paneKind != WorkbenchPaneKind.NONE
@@ -952,6 +958,9 @@ fun AppNavigation(
                                     },
                                     onOpenOptimizeModelSettings = {
                                         navController.navigate("settings?section=default_models&from=chat")
+                                    },
+                                    onOpenRoles = {
+                                        navController.navigate("settings?section=roles&from=chat")
                                     },
                                     onOpenInEditor = openFilePreview
                                 )
