@@ -68,7 +68,13 @@ data class BackupOptions(
     val memories: Boolean = true,
     val favorites: Boolean = true,
     val skills: Boolean = true,
-    val plugins: Boolean = true
+    val plugins: Boolean = true,
+    /** 自定义提示词目录（prompts.custom）整目录。 */
+    val customPrompts: Boolean = true,
+    /** 新角色系统：Room roles 表数据（会话 roleId 随聊天记录导出）。 */
+    val roles: Boolean = true,
+    /** 媒体文件：新对话快捷入口自定义图标 + 聊天背景图目录。 */
+    val mediaFiles: Boolean = true
 )
 
 data class RestoreStats(
@@ -84,7 +90,10 @@ data class RestoreStats(
     val memories: Int = 0,
     val favorites: Int = 0,
     val skills: Int = 0,
-    val plugins: Int = 0
+    val plugins: Int = 0,
+    val roles: Int = 0,
+    val customPrompts: Int = 0,
+    val mediaFiles: Int = 0
 ) {
     operator fun plus(other: RestoreStats) = RestoreStats(
         providers = providers + other.providers,
@@ -99,6 +108,9 @@ data class RestoreStats(
         memories = memories + other.memories,
         favorites = favorites + other.favorites,
         skills = skills + other.skills,
-        plugins = plugins + other.plugins
+        plugins = plugins + other.plugins,
+        roles = roles + other.roles,
+        customPrompts = customPrompts + other.customPrompts,
+        mediaFiles = mediaFiles + other.mediaFiles
     )
 }

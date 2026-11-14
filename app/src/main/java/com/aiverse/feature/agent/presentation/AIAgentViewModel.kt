@@ -26,6 +26,7 @@ import com.aiverse.feature.agent.domain.checkpoint.CheckpointManager
 import com.aiverse.feature.agent.data.local.dao.CheckpointDao
 import com.aiverse.feature.agent.data.local.dao.ChatSessionDao
 import com.aiverse.feature.agent.data.local.dao.LlmCallRecordDao
+import com.aiverse.feature.agent.data.local.dao.RoleDao
 import com.aiverse.feature.agent.data.local.dao.TodoItemDao
 import com.aiverse.feature.agent.domain.model.TodoItem
 import com.aiverse.feature.agent.data.local.entity.AgentMessageEntity
@@ -61,6 +62,7 @@ import com.aiverse.feature.agent.domain.model.AgentMode
 import com.aiverse.feature.agent.domain.model.GoalStatus
 import com.aiverse.feature.agent.domain.model.ChatSession
 import com.aiverse.feature.agent.domain.model.ReasoningEffort
+import com.aiverse.feature.agent.domain.model.Role
 import com.aiverse.feature.agent.domain.notification.AgentNotificationCenter
 import com.aiverse.feature.agent.domain.notification.AgentNotificationFormatter
 import com.aiverse.feature.agent.domain.notification.AgentNotificationKind
@@ -201,6 +203,7 @@ class AIAgentViewModel @Inject constructor(
     private val agentNotificationCenter: AgentNotificationCenter,
     private val agentDefinitionRepository: AgentDefinitionRepository,
     private val todoItemDao: TodoItemDao,
+    private val roleDao: RoleDao,
     val fileAccess: FileAccessProvider,
     val installedAppRepository: InstalledAppRepository,
     private val fileChangeHub: FileChangeHub,
@@ -2599,6 +2602,13 @@ class AIAgentViewModel @Inject constructor(
                     ?.let { agentDefinitionRepository.findIncludingDisabled(it) }
             }
 
+            // 角色身份：会话绑定角色（roleId 为 null 视为默认角色）的 identityPrompt 注入提示词最前。
+            // 默认角色身份来自 Room（RoleSeeder 迁入），不硬编码；角色被禁用或查不到时不注入。
+            val roleIdentity = withContext(Dispatchers.IO) {
+                val role = roleDao.getById(sessionEntity?.roleId ?: Role.DEFAULT_ROLE_ID)?.toDomain()
+                role?.takeIf { it.enabled }?.identityPrompt?.trim()?.takeIf { it.isNotEmpty() }
+            }
+
             val agentContext = AgentContext(
                 currentFile = currentFile,
                 selectedCode = selectedCode,
@@ -2614,7 +2624,8 @@ class AIAgentViewModel @Inject constructor(
                 goal = sessionDomain?.goal,
                 goalStatus = sessionDomain?.goalStatus,
                 reasoningEffort = sessionDomain?.reasoningEffort?.apiValue,
-                agentDefinition = agentDefinition
+                agentDefinition = agentDefinition,
+                roleIdentity = roleIdentity
             )
 
             val allTools = toolRegistry.getAvailableTools()

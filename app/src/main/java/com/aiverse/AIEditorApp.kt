@@ -189,6 +189,10 @@ class AIEditorApp : Application(), Configuration.Provider {
     @Inject
     lateinit var secretEncryptionMigrator: com.aiverse.feature.settings.data.SecretEncryptionMigrator
 
+    /** 角色 00 身份一次性迁移器：启动即把原 00 号身份正文迁入默认角色（幂等，见 RoleSeeder）。 */
+    @Inject
+    lateinit var roleSeeder: com.aiverse.feature.agent.domain.role.RoleSeeder
+
     /** git 凭据仓库：启动即把旧版明文凭据文件迁移为编码格式。 */
     @Inject
     lateinit var fileCredentialRepository: com.aiverse.feature.credentials.data.repository.FileCredentialRepository
@@ -324,6 +328,10 @@ class AIEditorApp : Application(), Configuration.Provider {
         // 启动即把历史明文的敏感字段（API Key、密码、私钥文件）加密回写。
         appScope.launch {
             secretEncryptionMigrator.migrateIfNeeded()
+        }
+        // 启动即把原 00 号身份正文迁入默认角色（角色系统接手 00 号，幂等，仅首次执行）。
+        appScope.launch {
+            roleSeeder.seedIfNeeded()
         }
         // 启动即把旧版明文的 git 凭据文件迁移为编码格式。
         appScope.launch {

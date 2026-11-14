@@ -104,6 +104,9 @@ class BackupViewModel @Inject constructor(
             .putBoolean(KEY_PERMISSION_RULES, options.permissionRules)
             .putBoolean(KEY_APP_SETTINGS, options.appSettings)
             .putBoolean(KEY_WORKSPACE_FILES, options.workspaceFiles)
+            .putBoolean(KEY_CUSTOM_PROMPTS, options.customPrompts)
+            .putBoolean(KEY_ROLES, options.roles)
+            .putBoolean(KEY_MEDIA_FILES, options.mediaFiles)
             .apply()
     }
 
@@ -114,7 +117,10 @@ class BackupViewModel @Inject constructor(
         mcpServers = prefs.getBoolean(KEY_MCP_SERVERS, true),
         permissionRules = prefs.getBoolean(KEY_PERMISSION_RULES, true),
         appSettings = prefs.getBoolean(KEY_APP_SETTINGS, true),
-        workspaceFiles = prefs.getBoolean(KEY_WORKSPACE_FILES, false)
+        workspaceFiles = prefs.getBoolean(KEY_WORKSPACE_FILES, false),
+        customPrompts = prefs.getBoolean(KEY_CUSTOM_PROMPTS, true),
+        roles = prefs.getBoolean(KEY_ROLES, true),
+        mediaFiles = prefs.getBoolean(KEY_MEDIA_FILES, true)
     )
 
     /** 流式导出到 [output]（调用方打开，本方法负责关闭）。 */
@@ -442,5 +448,8 @@ class BackupViewModel @Inject constructor(
         private const val KEY_PERMISSION_RULES = "permission_rules"
         private const val KEY_APP_SETTINGS = "app_settings"
         private const val KEY_WORKSPACE_FILES = "workspace_files"
+        private const val KEY_CUSTOM_PROMPTS = "custom_prompts"
+        private const val KEY_ROLES = "roles"
+        private const val KEY_MEDIA_FILES = "media_files"
     }
 }

@@ -25,6 +25,7 @@ data class BackupSnapshot(
     val todoItems: List<TodoItemDto> = emptyList(),
     val mcpServers: List<McpServerConfig> = emptyList(),
     val globalPermissionRules: List<PermissionRule> = emptyList(),
+    val roles: List<RoleDto> = emptyList(),
     val themeMode: String? = null,
     val themePresetId: String? = null,
     val dynamicColorEnabled: Boolean = false,
@@ -58,6 +59,16 @@ data class BackupSnapshot(
     val syncSettings: SyncSettingsSnapshot? = null,
     /** 自定义快捷入口（欢迎卡片）的 JSON 编码列表；null 表示旧备份无此字段或未备份应用设置，导入时忽略。 */
     val welcomeEntriesJson: String? = null,
+    /** 新会话默认模型（providerId）；空表示未设置，导入时回退全局 active provider。 */
+    val defaultModelProviderId: String = "",
+    /** 新会话默认模型（model）；空表示未设置。 */
+    val defaultModel: String = "",
+    /** 语言 tag（如 zh-CN / en）；null 表示跟随系统。 */
+    val languageTag: String? = null,
+    /** 输入框快捷栏偏好（JSON 编码 [com.aiverse.feature.settings.data.repository.InputBarPrefs] + webSearchEnabled）。 */
+    val inputBarPrefsJson: String? = null,
+    /** 聊天背景图文件绝对路径（导出设备）；null 表示未设置背景。 */
+    val backgroundImagePath: String? = null,
     val memories: List<MemoryDto> = emptyList(),
     val favorites: List<FavoriteItemDto> = emptyList(),
     val skills: List<SkillBackupMeta> = emptyList()
@@ -110,12 +121,58 @@ data class BackupMetadata(
     val syncSettings: SyncSettingsSnapshot? = null,
     /** 自定义快捷入口（欢迎卡片）的 JSON 编码列表；null 表示旧备份无此字段或未备份应用设置，导入时忽略。 */
     val welcomeEntriesJson: String? = null,
+    /** 新会话默认模型（providerId）；空表示未设置。 */
+    val defaultModelProviderId: String = "",
+    /** 新会话默认模型（model）；空表示未设置。 */
+    val defaultModel: String = "",
+    /** 语言 tag；null 表示跟随系统。 */
+    val languageTag: String? = null,
+    /** 输入框快捷栏偏好（JSON 编码）。 */
+    val inputBarPrefsJson: String? = null,
+    /** 聊天背景图文件绝对路径（导出设备）；null 表示未设置背景。 */
+    val backgroundImagePath: String? = null,
     val workspaces: List<WorkspaceBackupMeta> = emptyList(),
     val memories: List<MemoryDto> = emptyList(),
     val favorites: List<FavoriteItemDto> = emptyList(),
     val skills: List<SkillBackupMeta> = emptyList(),
     val plugins: List<PluginBackupMeta> = emptyList(),
+    /** 自定义提示词目录（prompts.custom）备份文件数；0 表示旧备份无此段或未勾选。 */
+    val customPromptFileCount: Int = 0,
+    /** 媒体文件（快捷入口图标 + 聊天背景图）备份文件数；0 表示旧备份无此段或未勾选。 */
+    val mediaFileCount: Int = 0,
     val includesAppSettings: Boolean = themeMode != null
+)
+
+/** 备份中的一条角色（新角色系统）；与 [com.aiverse.feature.agent.data.local.entity.RoleEntity] 同构。 */
+@Serializable
+data class RoleDto(
+    val id: String,
+    val name: String,
+    val description: String,
+    /** 注入系统提示词最前的身份正文。 */
+    val identityPrompt: String,
+    /** 逗号分隔的标签。 */
+    val tags: String,
+    val avatarKind: String,
+    val avatarValue: String,
+    val enabled: Boolean,
+    val isBuiltin: Boolean,
+    val sortOrder: Int,
+    val createdAt: Long,
+    val updatedAt: Long
+)
+
+/** 备份中的输入框快捷栏偏好（JSON 编码用）。 */
+@Serializable
+data class InputBarPrefsDto(
+    val showMcp: Boolean = false,
+    val showThinking: Boolean = true,
+    val showFolder: Boolean = true,
+    val showModel: Boolean = true,
+    val showWebSearch: Boolean = false,
+    val showOptimize: Boolean = false,
+    val showPlus: Boolean = false,
+    val webSearchEnabled: Boolean = true
 )
 
 /** 备份元数据中的一个技能段：名称 + 作用域 + 文件数（用于导入摘要）。 */
@@ -183,6 +240,11 @@ fun BackupSnapshot.toMetadata() = BackupMetadata(
     optimizeModel = optimizeModel,
     syncSettings = syncSettings,
     welcomeEntriesJson = welcomeEntriesJson,
+    defaultModelProviderId = defaultModelProviderId,
+    defaultModel = defaultModel,
+    languageTag = languageTag,
+    inputBarPrefsJson = inputBarPrefsJson,
+    backgroundImagePath = backgroundImagePath,
     memories = memories,
     favorites = favorites,
     skills = skills,
@@ -268,7 +330,9 @@ data class ChatSessionDto(
     val parentId: String? = null,
     val subagentType: String? = null,
     /** 会话最近一次真实上下文用量（inputTokens），随备份导出/恢复。 */
-    val lastInputTokens: Int = 0
+    val lastInputTokens: Int = 0,
+    /** 会话绑定的角色 id；null 表示默认角色。 */
+    val roleId: String? = null
 )
 
 @Serializable

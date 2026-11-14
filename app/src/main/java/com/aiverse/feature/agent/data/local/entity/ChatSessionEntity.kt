@@ -38,7 +38,9 @@ data class ChatSessionEntity(
     /** 子代理会话：父会话 id；null 表示普通根会话。 */
     val parentId: String? = null,
     /** 子代理会话：派生子代理的类型（如 coder / researcher）；null 表示普通根会话。 */
-    val subagentType: String? = null
+    val subagentType: String? = null,
+    /** 会话绑定的角色 id；null 表示默认角色（[com.aiverse.feature.agent.domain.model.Role.DEFAULT_ROLE_ID]）。 */
+    val roleId: String? = null
 ) {
     fun toDomain(): ChatSession = ChatSession(
         id = id,
@@ -61,7 +63,8 @@ data class ChatSessionEntity(
         lastInputTokens = lastInputTokens,
         isPinned = isPinned,
         parentId = parentId,
-        subagentType = subagentType
+        subagentType = subagentType,
+        roleId = roleId
     )
 
     companion object {
@@ -86,7 +89,8 @@ data class ChatSessionEntity(
             lastInputTokens = session.lastInputTokens,
             isPinned = session.isPinned,
             parentId = session.parentId,
-            subagentType = session.subagentType
+            subagentType = session.subagentType,
+            roleId = session.roleId
         )
     }
 }

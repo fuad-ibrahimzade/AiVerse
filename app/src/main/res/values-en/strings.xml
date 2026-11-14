@@ -956,6 +956,9 @@
     <string name="backup_data_favorites">Favorite Messages</string>
     <string name="backup_data_skills">Skills</string>
     <string name="backup_data_plugins">Script Plugins</string>
+    <string name="backup_data_roles">Roles (New Role System)</string>
+    <string name="backup_data_custom_prompts">Custom Prompts</string>
+    <string name="backup_data_media_files">Custom Icons &amp; Chat Background</string>
     <string name="backup_workspace_git_hint">Workspace files are best backed up via Git; the export here is only a fallback</string>
     <string name="backup_password_label">Password (optional)</string>
     <string name="backup_processing">Processing</string>
@@ -974,6 +977,9 @@
     <string name="backup_stat_favorites">· Favorite Messages: %1$s</string>
     <string name="backup_stat_skills">· Skills: %1$s</string>
     <string name="backup_stat_plugins">· Script Plugins: %1$s</string>
+    <string name="backup_stat_roles">· Roles: %1$s</string>
+    <string name="backup_stat_custom_prompts">· Custom Prompts: %1$s</string>
+    <string name="backup_stat_media_files">· Custom Icons &amp; Background: %1$s</string>
     <string name="backup_settings_covered">Theme, keepalive, logging, vision, and sync preferences covered</string>
     <string name="backup_restore_workspaces_title">Restore workspaces</string>
     <string name="backup_restore_workspaces_warning">Files in local workspaces with the same name will be overwritten and cannot be undone. Select carefully.</string>
@@ -1843,6 +1849,13 @@
     <string name="subagent_source_file">Definition file</string>
     <string name="subagent_inherit_parent">Inherit from parent session</string>
     <string name="subagent_all_tools">All tools except task</string>
+
+    <!-- Role (issue #110) -->
+    <string name="chat_role_switcher">Roles</string>
+    <string name="chat_role_default">Default role</string>
+    <string name="chat_role_manage">Manage roles</string>
+    <string name="chat_role_current">Current role</string>
+    <string name="chat_role_empty">No roles yet</string>
     <string name="subagent_tools_allow">Allowed only: %1$s</string>
     <string name="subagent_tools_deny">Denied: %1$s</string>
     <string name="subagent_inject_none">No extra prompt injected</string>
@@ -2749,4 +2762,41 @@ Use `/goal pause`, `/goal resume`, or `/goal clear` anytime.</string>
     <string name="phone_node_clickable">button</string>
     <string name="phone_node_default">node</string>
     <string name="plugin_saved_path">Saved: %1$s</string>
+    <string name="settings_roles">Roles</string>
+    <string name="roles_add">New role</string>
+    <string name="roles_empty">No roles yet</string>
+    <string name="roles_delete_confirm_title">Delete role</string>
+    <string name="roles_delete_confirm_message">Delete role "%1$s"? This cannot be undone.</string>
+    <string name="roles_batch_delete_title">Delete roles</string>
+    <string name="roles_batch_delete_confirm">Delete %1$d selected roles? This cannot be undone.</string>
+    <string name="roles_badge_builtin">Built-in</string>
+    <string name="roles_badge_custom">Custom</string>
+    <string name="roles_enable">Enable role</string>
+    <string name="roles_disable">Disable role</string>
+    <string name="roles_editor_new">New role</string>
+    <string name="roles_editor_edit">Edit role</string>
+    <string name="roles_import">Import .md/.txt</string>
+    <string name="roles_import_failed">Import failed, cannot read file</string>
+    <string name="roles_save_failed">Save failed, please retry</string>
+    <string name="roles_field_basic">Basic info</string>
+    <string name="roles_field_name">Name</string>
+    <string name="roles_field_name_placeholder">Up to 4 characters</string>
+    <string name="roles_field_description">Description</string>
+    <string name="roles_field_description_placeholder">A short description shown in the list</string>
+    <string name="roles_field_identity">Identity prompt</string>
+    <string name="roles_field_identity_placeholder">Identity body injected at the start of the system prompt</string>
+    <string name="roles_field_tags">Tags</string>
+    <string name="roles_field_tags_placeholder">Comma separated, e.g. dev,backend</string>
+    <string name="roles_field_avatar">Avatar</string>
+    <string name="roles_field_avatar_value">Avatar value</string>
+    <string name="roles_field_avatar_emoji_placeholder">Enter an emoji, e.g. 🧑‍💻</string>
+    <string name="roles_field_avatar_image_placeholder">Enter an image URL or local path</string>
+    <string name="roles_field_status">Status</string>
+    <string name="roles_field_type">Type</string>
+    <string name="roles_avatar_none">None</string>
+    <string name="roles_avatar_emoji">Emoji</string>
+    <string name="roles_avatar_image">Image</string>
+    <string name="roles_no_description">Not set</string>
+    <string name="roles_no_tags">Not set</string>
+    <string name="roles_identity_empty">This role has no identity prompt</string>
 </resources>

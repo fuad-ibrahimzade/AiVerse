@@ -94,5 +94,7 @@ data class ChatSession(
     /** 子代理会话：父会话 id；null 表示普通根会话。 */
     val parentId: String? = null,
     /** 子代理会话：派生子代理的类型（如 coder / researcher）；null 表示普通根会话。 */
-    val subagentType: String? = null
+    val subagentType: String? = null,
+    /** 会话绑定的角色 id；null 表示默认角色（[Role.DEFAULT_ROLE_ID]）。 */
+    val roleId: String? = null
 )

@@ -6,13 +6,17 @@ import com.aiverse.core.util.FileLogger
 import com.aiverse.core.util.GitIgnoreMatcher
 import com.aiverse.feature.agent.data.local.dao.AgentMessageDao
 import com.aiverse.feature.agent.data.local.dao.ChatSessionDao
+import com.aiverse.feature.agent.data.local.dao.RoleDao
 import com.aiverse.feature.agent.data.local.dao.TodoItemDao
 import com.aiverse.feature.agent.data.local.database.AgentDatabase
 import com.aiverse.feature.agent.data.repository.FavoriteItem
 import com.aiverse.feature.agent.data.repository.FavoriteRepository
 import com.aiverse.feature.agent.data.local.entity.AgentMessageEntity
 import com.aiverse.feature.agent.data.local.entity.ChatSessionEntity
+import com.aiverse.feature.agent.data.local.entity.RoleEntity
 import com.aiverse.feature.agent.data.local.entity.TodoItemEntity
+import com.aiverse.feature.agent.domain.container.ContainerInstaller
+import com.aiverse.feature.agent.domain.model.Role
 import com.aiverse.feature.agent.domain.mcp.McpConfigRepository
 import com.aiverse.feature.agent.domain.mcp.McpManager
 import com.aiverse.feature.agent.domain.memory.MemoryRepository
@@ -30,12 +34,14 @@ import com.aiverse.feature.backup.domain.BackupSnapshot
 import com.aiverse.feature.backup.domain.ChatSessionDto
 import com.aiverse.feature.backup.domain.FavoriteItemDto
 import com.aiverse.feature.backup.domain.ImportPreview
+import com.aiverse.feature.backup.domain.InputBarPrefsDto
 import com.aiverse.feature.backup.domain.MemoryDto
 import com.aiverse.feature.backup.domain.PluginBackupMeta
 import com.aiverse.feature.backup.domain.ProviderDto
 import com.aiverse.feature.backup.domain.RemoteConnectionDto
 import com.aiverse.feature.backup.domain.RemoteMountDto
 import com.aiverse.feature.backup.domain.RestoreStats
+import com.aiverse.feature.backup.domain.RoleDto
 import com.aiverse.feature.backup.domain.SkillBackupMeta
 import com.aiverse.feature.backup.domain.TodoItemDto
 import com.aiverse.feature.backup.domain.WorkspaceBackupMeta
@@ -44,19 +50,26 @@ import com.aiverse.feature.plugins.data.PluginRepository
 import com.aiverse.feature.settings.data.local.dao.AIProviderDao
 import com.aiverse.feature.settings.data.local.entity.AIProviderEntity
 import com.aiverse.feature.settings.data.repository.AppearanceSettingsRepository
+import com.aiverse.feature.settings.data.repository.BackgroundSettingsRepository
 import com.aiverse.feature.settings.data.repository.CompactionModelSettingsRepository
 import com.aiverse.feature.settings.data.repository.AgentSoundSettingsRepository
+import com.aiverse.feature.settings.data.repository.DefaultModelSettingsRepository
 import com.aiverse.feature.settings.data.repository.GeneralSettingsRepository
+import com.aiverse.feature.settings.data.repository.InputBarPrefs
+import com.aiverse.feature.settings.data.repository.InputBarSettingsRepository
 import com.aiverse.feature.settings.data.repository.KeepaliveSettingsRepository
 import com.aiverse.feature.settings.data.repository.LiveNotificationSettingsRepository
 import com.aiverse.feature.settings.data.repository.ApprovalNotificationSettingsRepository
 import com.aiverse.feature.settings.data.repository.ScreenOnSettingsRepository
+import com.aiverse.feature.settings.data.repository.LanguageSettingsRepository
 import com.aiverse.feature.settings.data.repository.LogSettingsRepository
 import com.aiverse.feature.settings.data.repository.SyncSettingsRepository
 import com.aiverse.feature.settings.data.repository.ThemeSettingsRepository
 import com.aiverse.feature.settings.data.repository.WelcomeEntriesRepository
 import com.aiverse.feature.settings.data.repository.VisionModelSettingsRepository
 import com.aiverse.feature.settings.data.repository.OptimizeInputModelSettingsRepository
+import com.aiverse.feature.settings.domain.model.WelcomeEntry
+import com.aiverse.feature.settings.domain.model.WelcomeIconKind
 import com.aiverse.feature.workspace.data.local.dao.RemoteConnectionDao
 import com.aiverse.feature.workspace.data.local.entity.RemoteConnectionEntity
 import com.aiverse.feature.workspace.data.local.entity.RemoteMountEntity
@@ -69,6 +82,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
@@ -115,7 +129,13 @@ class BackupManagerImpl @Inject constructor(
     private val favoriteRepository: FavoriteRepository,
     private val skillRepository: SkillRepository,
     private val pluginRepository: PluginRepository,
-    private val welcomeEntriesRepository: WelcomeEntriesRepository
+    private val welcomeEntriesRepository: WelcomeEntriesRepository,
+    private val roleDao: RoleDao,
+    private val defaultModelSettingsRepository: DefaultModelSettingsRepository,
+    private val languageSettingsRepository: LanguageSettingsRepository,
+    private val inputBarSettingsRepository: InputBarSettingsRepository,
+    private val backgroundSettingsRepository: BackgroundSettingsRepository,
+    private val containerInstaller: ContainerInstaller
 ) : BackupManager {
 
     private val json = Json {
@@ -326,6 +346,17 @@ class BackupManagerImpl @Inject constructor(
                     if (options.plugins) {
                         writePluginEntries(tar)
                     }
+                    if (options.roles) {
+                        writeJsonlFileEntry(tar, FILE_ROLES) { writer ->
+                            roleDao.getAllOnce().forEach { writer.writeLine(json.encodeToString(RoleDto.serializer(), it.toDto())) }
+                        }
+                    }
+                    if (options.customPrompts) {
+                        writeCustomPromptEntries(tar)
+                    }
+                    if (options.mediaFiles) {
+                        writeMediaEntries(tar)
+                    }
                     if (options.chatHistory) {
                         writeJsonlFileEntry(tar, FILE_SESSIONS) { writer ->
                             var lastTs = 0L
@@ -407,11 +438,18 @@ class BackupManagerImpl @Inject constructor(
         optimizeModel = if (options.appSettings) optimizeInputModelSettingsRepository.getOptimizeInputModel() else "",
         syncSettings = if (options.appSettings) syncSettingsRepository.snapshot() else null,
         welcomeEntriesJson = if (options.appSettings) welcomeEntriesRepository.entriesJsonSnapshot() else null,
+        defaultModelProviderId = if (options.appSettings) defaultModelSettingsRepository.getDefaultProviderId() else "",
+        defaultModel = if (options.appSettings) defaultModelSettingsRepository.getDefaultModel() else "",
+        languageTag = if (options.appSettings) languageSettingsRepository.snapshot() else null,
+        inputBarPrefsJson = if (options.appSettings) encodeInputBarPrefs() else null,
+        backgroundImagePath = if (options.appSettings) backgroundSettingsRepository.imagePathFlow.first() else null,
         workspaces = if (options.workspaceFiles) collectWorkspaceMetas() else emptyList(),
         memories = if (options.memories) collectMemories() else emptyList(),
         favorites = if (options.favorites) favoriteRepository.getAllOnce().map { it.toDto() } else emptyList(),
         skills = if (options.skills) collectSkillMetas() else emptyList(),
         plugins = if (options.plugins) collectPluginMetas() else emptyList(),
+        customPromptFileCount = if (options.customPrompts) collectCustomPromptFileCount() else 0,
+        mediaFileCount = if (options.mediaFiles) collectMediaFileCount() else 0,
         includesAppSettings = options.appSettings
     )
 
@@ -524,6 +562,64 @@ class BackupManagerImpl @Inject constructor(
         }
     }
 
+    // ── 自定义提示词备份（prompts.custom 整目录） ─────────────────
+
+    private val promptsCustomDir: File
+        get() = File(containerInstaller.aiverseDir, "prompts.custom")
+
+    /** 第一遍：统计 prompts.custom 目录下将备份的文件数（写 metadata 用）。 */
+    private fun collectCustomPromptFileCount(): Int {
+        var count = 0
+        walkDirectory(promptsCustomDir) { _, _ -> count++ }
+        return count
+    }
+
+    /** 第二遍：把 prompts.custom 目录文件写入 tar（`customPrompts/<相对路径>`）。 */
+    private fun writeCustomPromptEntries(tar: TarArchiveOutputStream) {
+        walkDirectory(promptsCustomDir) { file, parts ->
+            writeTarFileEntry(tar, "${CUSTOM_PROMPT_PREFIX}${parts.joinToString("/")}", file)
+        }
+    }
+
+    // ── 媒体文件备份（快捷入口图标 + 聊天背景图） ──────────────────
+
+    /** 第一遍：统计图标/背景图目录文件数（写 metadata 用）。 */
+    private fun collectMediaFileCount(): Int {
+        var count = 0
+        walkDirectory(welcomeIconsDir) { _, _ -> count++ }
+        walkDirectory(backgroundsDir) { _, _ -> count++ }
+        return count
+    }
+
+    /** 第二遍：把图标/背景图文件写入 tar（`media/welcome_icons/<name>`、`media/backgrounds/<name>`）。 */
+    private fun writeMediaEntries(tar: TarArchiveOutputStream) {
+        walkDirectory(welcomeIconsDir) { file, parts ->
+            writeTarFileEntry(tar, "${MEDIA_PREFIX}${WELCOME_ICON_DIR}/${parts.joinToString("/")}", file)
+        }
+        walkDirectory(backgroundsDir) { file, parts ->
+            writeTarFileEntry(tar, "${MEDIA_PREFIX}${BACKGROUND_DIR}/${parts.joinToString("/")}", file)
+        }
+    }
+
+    private val welcomeIconsDir: File
+        get() = File(context.filesDir, WELCOME_ICON_DIR)
+
+    private val backgroundsDir: File
+        get() = File(context.filesDir, BACKGROUND_DIR)
+
+    /** 递归遍历目录文件（符号链接跳过，防循环），按相对路径回调。 */
+    private fun walkDirectory(dir: File, onFile: (File, List<String>) -> Unit) {
+        if (!dir.isDirectory) return
+        fun walk(current: File, relParts: List<String>) {
+            current.listFiles()?.forEach { f ->
+                if (java.nio.file.Files.isSymbolicLink(f.toPath())) return@forEach
+                val parts = relParts + f.name
+                if (f.isDirectory) walk(f, parts) else onFile(f, parts)
+            }
+        }
+        walk(dir, emptyList())
+    }
+
     /**
      * 递归遍历本地工作区，按「.gitignore（锚定）+ 同步忽略清单」排除文件；
      * `.git` 目录强制包含（其内部不参与忽略判断）；符号链接跳过（防循环）。
@@ -617,6 +713,14 @@ class BackupManagerImpl @Inject constructor(
                     FileLogger.i(TAG, "恢复待办 $count 条")
                     stats += RestoreStats(todoItems = count)
                 }
+                FILE_ROLES -> {
+                    val count = restoreJsonl(tar, RoleDto.serializer()) { dtos ->
+                        roleDao.upsertAll(dtos.map { it.toEntity() })
+                    }
+                    ensureDefaultRole()
+                    FileLogger.i(TAG, "恢复角色 $count 条")
+                    stats += RestoreStats(roles = count)
+                }
                 else -> {
                     if (entry.name.startsWith(WORKSPACE_PREFIX)) {
                         stats += restoreWorkspaceEntry(tar, entry.name, selectedWorkspaces, restoreMapping)
@@ -624,6 +728,10 @@ class BackupManagerImpl @Inject constructor(
                         restoreSkillEntry(tar, entry.name)?.let { restoredSkills += it }
                     } else if (entry.name.startsWith(PLUGIN_PREFIX)) {
                         restorePluginEntry(tar, entry.name)?.let { restoredPlugins += it }
+                    } else if (entry.name.startsWith(CUSTOM_PROMPT_PREFIX)) {
+                        if (restoreCustomPromptEntry(tar, entry.name)) stats += RestoreStats(customPrompts = 1)
+                    } else if (entry.name.startsWith(MEDIA_PREFIX)) {
+                        if (restoreMediaEntry(tar, entry.name)) stats += RestoreStats(mediaFiles = 1)
                     }
                 }
             }
@@ -702,10 +810,15 @@ class BackupManagerImpl @Inject constructor(
         if (snapshot.todoItems.isNotEmpty()) {
             todoItemDao.upsertAll(snapshot.todoItems.map { it.toEntity() })
         }
+        if (snapshot.roles.isNotEmpty()) {
+            roleDao.upsertAll(snapshot.roles.map { it.toEntity() })
+            ensureDefaultRole()
+        }
         return stats + RestoreStats(
             chatSessions = snapshot.chatSessions.size,
             agentMessages = snapshot.agentMessages.size,
-            todoItems = snapshot.todoItems.size
+            todoItems = snapshot.todoItems.size,
+            roles = snapshot.roles.size
         )
     }
 
@@ -772,7 +885,21 @@ class BackupManagerImpl @Inject constructor(
                 optimizeInputModelSettingsRepository.setOptimizeInputModel(meta.optimizeProviderId, meta.optimizeModel)
             }
             meta.syncSettings?.let { syncSettingsRepository.restore(it) }
-            meta.welcomeEntriesJson?.let { welcomeEntriesRepository.restoreFromJson(it) }
+            meta.welcomeEntriesJson?.let { welcomeEntriesRepository.restoreFromJson(rewriteWelcomeEntriesIconPaths(it)) }
+            if (meta.defaultModelProviderId.isNotBlank() || meta.defaultModel.isNotBlank()) {
+                defaultModelSettingsRepository.setDefaultModel(meta.defaultModelProviderId, meta.defaultModel)
+            }
+            meta.languageTag?.let { languageSettingsRepository.restore(it) }
+            meta.inputBarPrefsJson?.let { restoreInputBarPrefs(it) }
+            meta.backgroundImagePath?.let { path ->
+                // 备份里的路径是导出设备的绝对路径；还原后指向本机 backgrounds 目录下同名文件。
+                val fileName = path.substringAfterLast('/')
+                if (fileName.isNotBlank()) {
+                    backgroundSettingsRepository.restoreImagePath(
+                        File(context.filesDir, "${BACKGROUND_DIR}/$fileName").absolutePath
+                    )
+                }
+            }
         }
 
         if (meta.memories.isNotEmpty()) {
@@ -840,6 +967,120 @@ class BackupManagerImpl @Inject constructor(
         target.parentFile?.mkdirs()
         target.writeBytes(bytes)
         return id
+    }
+
+    /**
+     * 还原单个自定义提示词文件条目：`customPrompts/<相对路径>`。
+     * 逐文件写回 prompts.custom 目录（同名覆盖）；成功返回 true，失败返回 false。
+     */
+    private fun restoreCustomPromptEntry(tar: TarArchiveInputStream, name: String): Boolean {
+        val rel = name.removePrefix(CUSTOM_PROMPT_PREFIX)
+        if (rel.isBlank() || rel.split('/').any { it.isBlank() || it == "." || it == ".." }) return false
+        val target = File(promptsCustomDir, rel)
+        target.parentFile?.mkdirs()
+        val bytes = tar.readBytes()
+        if (bytes.isEmpty()) return false
+        target.writeBytes(bytes)
+        return true
+    }
+
+    /**
+     * 还原单个媒体文件条目：`media/<kind>/<文件名>`（kind 为 welcome_icons 或 backgrounds）。
+     * 逐文件写回对应目录（同名覆盖）；成功返回 true，失败返回 false。
+     */
+    private fun restoreMediaEntry(tar: TarArchiveInputStream, name: String): Boolean {
+        val parts = name.removePrefix(MEDIA_PREFIX).split('/')
+        if (parts.size < 2) return false
+        val kind = parts[0]
+        val fileName = parts.drop(1).joinToString("/")
+        if (fileName.isBlank() || fileName.split('/').any { it.isBlank() || it == "." || it == ".." }) return false
+        val base = when (kind) {
+            WELCOME_ICON_DIR -> welcomeIconsDir
+            BACKGROUND_DIR -> backgroundsDir
+            else -> return false
+        }
+        val target = File(base, fileName)
+        target.parentFile?.mkdirs()
+        val bytes = tar.readBytes()
+        if (bytes.isEmpty()) return false
+        target.writeBytes(bytes)
+        return true
+    }
+
+    /** 导入角色后保证内置默认角色存在（缺失则补建空身份默认角色，RoleSeeder 后续会在需要时填充）。 */
+    private suspend fun ensureDefaultRole() {
+        if (roleDao.getById(Role.DEFAULT_ROLE_ID) != null) return
+        val now = System.currentTimeMillis()
+        roleDao.upsert(
+            RoleEntity(
+                id = Role.DEFAULT_ROLE_ID,
+                name = "默认角色",
+                description = "",
+                identityPrompt = "",
+                tags = "",
+                avatarKind = "NONE",
+                avatarValue = "",
+                enabled = true,
+                isBuiltin = true,
+                sortOrder = 0,
+                createdAt = now,
+                updatedAt = now
+            )
+        )
+    }
+
+    /** 输入框快捷栏偏好 → JSON（供备份应用设置）。 */
+    private fun encodeInputBarPrefs(): String? {
+        val p = inputBarSettingsRepository.load()
+        val dto = InputBarPrefsDto(
+            showMcp = p.showMcp,
+            showThinking = p.showThinking,
+            showFolder = p.showFolder,
+            showModel = p.showModel,
+            showWebSearch = p.showWebSearch,
+            showOptimize = p.showOptimize,
+            showPlus = p.showPlus,
+            webSearchEnabled = inputBarSettingsRepository.webSearchEnabled
+        )
+        return runCatching { json.encodeToString(InputBarPrefsDto.serializer(), dto) }.getOrNull()
+    }
+
+    /** 从备份的 JSON 还原输入框快捷栏偏好（解析失败时静默忽略）。 */
+    private fun restoreInputBarPrefs(jsonStr: String) {
+        val dto = runCatching { json.decodeFromString(InputBarPrefsDto.serializer(), jsonStr) }.getOrNull() ?: return
+        inputBarSettingsRepository.updateInputBarPrefs(
+            InputBarPrefs(
+                showMcp = dto.showMcp,
+                showThinking = dto.showThinking,
+                showFolder = dto.showFolder,
+                showModel = dto.showModel,
+                showWebSearch = dto.showWebSearch,
+                showOptimize = dto.showOptimize,
+                showPlus = dto.showPlus
+            )
+        )
+        inputBarSettingsRepository.webSearchEnabled = dto.webSearchEnabled
+    }
+
+    /**
+     * 欢迎卡片 JSON 里的图片图标路径改写：备份里的 iconValue 是导出设备的绝对路径，
+     * 导入到新设备后目录不同，需把目录前缀替换为当前 filesDir/welcome_icons（文件名保留，与还原后的文件一致）。
+     */
+    private fun rewriteWelcomeEntriesIconPaths(jsonStr: String): String {
+        val entries = runCatching {
+            json.decodeFromString(ListSerializer(WelcomeEntry.serializer()), jsonStr)
+        }.getOrNull() ?: return jsonStr
+        val newBase = File(context.filesDir, WELCOME_ICON_DIR).absolutePath
+        val rewritten = entries.map { entry ->
+            if (entry.iconKind == WelcomeIconKind.IMAGE && entry.iconValue.isNotBlank()) {
+                entry.copy(iconValue = "$newBase/${entry.iconValue.substringAfterLast('/')}")
+            } else {
+                entry
+            }
+        }
+        return runCatching {
+            json.encodeToString(ListSerializer(WelcomeEntry.serializer()), rewritten)
+        }.getOrDefault(jsonStr)
     }
 
     /**
@@ -999,14 +1240,26 @@ class BackupManagerImpl @Inject constructor(
         id = id, title = title, createdAt = createdAt, updatedAt = updatedAt, workspacePath = workspacePath,
         mode = mode, modeBeforePlan = modeBeforePlan, reasoningEffort = reasoningEffort, providerId = providerId,
         model = model, isPinned = isPinned, parentId = parentId, subagentType = subagentType,
-        lastInputTokens = lastInputTokens
+        lastInputTokens = lastInputTokens, roleId = roleId
     )
 
     private fun ChatSessionDto.toEntity() = ChatSessionEntity(
         id = id, title = title, createdAt = createdAt, updatedAt = updatedAt, workspacePath = workspacePath,
         mode = mode, modeBeforePlan = modeBeforePlan, reasoningEffort = reasoningEffort, providerId = providerId,
         model = model, isPinned = isPinned, parentId = parentId, subagentType = subagentType,
-        lastInputTokens = lastInputTokens
+        lastInputTokens = lastInputTokens, roleId = roleId
+    )
+
+    private fun RoleEntity.toDto() = RoleDto(
+        id = id, name = name, description = description, identityPrompt = identityPrompt, tags = tags,
+        avatarKind = avatarKind, avatarValue = avatarValue, enabled = enabled, isBuiltin = isBuiltin,
+        sortOrder = sortOrder, createdAt = createdAt, updatedAt = updatedAt
+    )
+
+    private fun RoleDto.toEntity() = RoleEntity(
+        id = id, name = name, description = description, identityPrompt = identityPrompt, tags = tags,
+        avatarKind = avatarKind, avatarValue = avatarValue, enabled = enabled, isBuiltin = isBuiltin,
+        sortOrder = sortOrder, createdAt = createdAt, updatedAt = updatedAt
     )
 
     private fun AgentMessageEntity.toDto() = AgentMessageDto(
@@ -1062,9 +1315,14 @@ class BackupManagerImpl @Inject constructor(
         const val FILE_MESSAGES = "messages.jsonl"
         const val FILE_TODOS = "todoItems.jsonl"
         const val FILE_LEGACY_SNAPSHOT = "snapshot.json"
+        const val FILE_ROLES = "roles.jsonl"
         const val WORKSPACE_PREFIX = "workspaces/"
         const val SKILL_PREFIX = "skills/"
         const val PLUGIN_PREFIX = "plugins/"
+        const val CUSTOM_PROMPT_PREFIX = "customPrompts/"
+        const val MEDIA_PREFIX = "media/"
+        const val WELCOME_ICON_DIR = "welcome_icons"
+        const val BACKGROUND_DIR = "backgrounds"
     }
 }
 

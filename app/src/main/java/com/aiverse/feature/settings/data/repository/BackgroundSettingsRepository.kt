@@ -168,6 +168,14 @@ class BackgroundSettingsRepository @Inject constructor(
     }
 
     /**
+     * 恢复备份的背景图路径（备份导入用）：写入 DataStore 指向已还原到本机目录的图片文件。
+     * 仅更新路径，不改动蒙版/模式/立绘高度；旧背景文件由调用方管理，不在此删除。
+     */
+    suspend fun restoreImagePath(path: String) {
+        context.backgroundDataStore.edit { it[IMAGE_PATH_KEY] = path }
+    }
+
+    /**
      * 把原图字节规整成最长边不超过 [MAX_EDGE] 的 JPEG。
      * 先按采样档位解码控峰值内存，再用 Matrix 精确缩放到目标尺寸（不改方向，源图按原方向落盘）。
      */

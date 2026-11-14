@@ -91,6 +91,7 @@ class PromptFragmentCatalog @Inject constructor(
             addAll(global.keys)
         }
         val all = numbers.sorted().mapNotNull { resolve(it, builtin, project, global, disabled) }
+            .filter { it.number != IDENTITY_NUMBER }
         // 「完全禁用内置提示词」时列表只保留自定义来源，与注入结果一致。
         return if (isBuiltinDisabled()) {
             all.filter {
@@ -349,5 +350,8 @@ class PromptFragmentCatalog @Inject constructor(
         const val ASSET_DIR = "prompts"
         const val CUSTOM_DIR = "prompts.custom"
         const val LOCAL_DIR = "prompts"
+
+        /** 身份片段编号：已由角色系统的默认角色接手，不再进提示词列表与静态基线。 */
+        const val IDENTITY_NUMBER = 0
     }
 }

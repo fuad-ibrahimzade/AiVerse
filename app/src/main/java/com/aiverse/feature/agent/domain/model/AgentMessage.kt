@@ -85,7 +85,12 @@ data class AgentContext(
      * 本会话绑定的自定义子代理定义；非空表示这是一个按定义运行的子代理会话，
      * 系统提示词与工具集都按其配置组装（见 [com.aiverse.feature.agent.domain.prompt.SystemPromptProvider]）。
      */
-    val agentDefinition: AgentDefinition? = null
+    val agentDefinition: AgentDefinition? = null,
+    /**
+     * 当前会话绑定角色的身份正文（已去前导注释）；注入到系统提示词最前，顶替原 00 号片段位置。
+     * null 或空表示不额外注入身份（默认角色未写入身份或未绑定角色）。
+     */
+    val roleIdentity: String? = null
 ) {
     /**
      * 工具授权判定用的有效模式：goal 自主循环激活期间按 AUTO 放行（保留灾难性安全防护），

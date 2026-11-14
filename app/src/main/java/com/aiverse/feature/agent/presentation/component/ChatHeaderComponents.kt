@@ -82,6 +82,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.aiverse.core.theme.LocalHyperOSStyle
 import com.aiverse.core.theme.LocalSurfaceGlassStyle
+import com.aiverse.core.theme.LocalUIDensityTokens
 import com.aiverse.core.theme.glassOr
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -91,6 +92,7 @@ import com.aiverse.core.theme.Radius
 import com.aiverse.core.theme.Spacing
 import com.aiverse.core.theme.semanticColors
 import com.aiverse.feature.agent.domain.model.AgentMode
+import com.aiverse.feature.agent.domain.model.Role
 import com.aiverse.feature.onboarding.domain.OnboardingStep
 import com.aiverse.feature.onboarding.presentation.onboardingTarget
 import com.aiverse.feature.settings.domain.model.WelcomeEntry
@@ -157,7 +159,11 @@ internal fun ChatHeader(
     /** 一键压缩当前会话上下文。 */
     onCompactContext: () -> Unit = {},
     /** 打开当前会话的消息时间线浮窗（顶栏 ··· 菜单入口）。 */
-    onOpenMessageTimeline: () -> Unit = {}
+    onOpenMessageTimeline: () -> Unit = {},
+    /** 当前会话绑定角色（已解析；null 表示默认角色未解析，显示默认名）。 */
+    currentRole: Role? = null,
+    /** 点击角色入口：打开角色切换抽屉。 */
+    onOpenRoleSwitcher: () -> Unit = {}
 ) {
     Surface(
         color = glassOr(MaterialTheme.semanticColors.surfaceGlass, MaterialTheme.colorScheme.background),
@@ -221,6 +227,12 @@ internal fun ChatHeader(
                         )
                     }
                     val hyperOS = LocalHyperOSStyle.current
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                    ) {
+                    // 当前角色入口：点击打开角色切换抽屉。
+                    RoleSwitcherPill(currentRole = currentRole, onClick = onOpenRoleSwitcher)
                     if (hyperOS) {
                         Surface(
                             shape = RoundedCornerShape(50),
@@ -277,6 +289,7 @@ internal fun ChatHeader(
                                 )
                             }
                         }
+                    }
                     }
                 }
                 // 思考强度入口（右上角，常驻）
@@ -358,6 +371,69 @@ internal fun ChatHeader(
                     },
                     onDismiss = { showModelSheet = false },
                     runModelTest = runModelTest
+                )
+            }
+        }
+    }
+}
+
+/** 顶栏当前角色入口：头像 + 角色名，点击打开角色切换抽屉。未解析出角色（默认角色缺失）时显示默认名。 */
+@Composable
+private fun RoleSwitcherPill(
+    currentRole: Role?,
+    onClick: () -> Unit
+) {
+    val t = LocalUIDensityTokens.current
+    val hyperOS = LocalHyperOSStyle.current
+    val roleName = currentRole?.name?.takeIf { it.isNotBlank() }
+        ?: stringResource(R.string.chat_role_default)
+    if (hyperOS) {
+        Surface(
+            shape = RoundedCornerShape(Radius.pill),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(t.scale(1), MaterialTheme.colorScheme.outlineVariant)
+        ) {
+            // 点击高亮裁剪进 pill 圆角，不再方块溢出容器。
+            PressableSurface(
+                onClick = onClick,
+                shape = RoundedCornerShape(Radius.pill),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = t.sm, vertical = t.xs),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    RoleAvatar(role = currentRole, size = t.scale(14))
+                    Text(
+                        text = roleName,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = t.scale(96))
+                    )
+                }
+            }
+        }
+    } else {
+        PressableSurface(
+            onClick = onClick,
+            shape = RoundedCornerShape(Radius.sm),
+            contentPadding = PaddingValues(horizontal = Spacing.xs, vertical = Spacing.xs)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+            ) {
+                RoleAvatar(role = currentRole, size = t.scale(16))
+                Text(
+                    text = roleName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = t.scale(96))
                 )
             }
         }

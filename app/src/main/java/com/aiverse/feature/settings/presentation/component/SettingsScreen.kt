@@ -91,6 +91,7 @@ import com.aiverse.feature.agent.domain.mcp.McpServerEntry
 import com.aiverse.feature.agent.domain.mcp.McpServerConfig
 import com.aiverse.feature.agent.domain.prompt.PromptFragment
 import com.aiverse.feature.agent.domain.prompt.PromptFragmentSource
+import com.aiverse.feature.agent.domain.model.Role
 import com.aiverse.feature.agent.domain.mcp.McpServerStatus
 import com.aiverse.feature.agent.presentation.component.MarkdownContent
 import com.aiverse.feature.agent.presentation.component.MarkdownRenderCache
@@ -146,6 +147,7 @@ import compose.icons.feathericons.Sliders
 import compose.icons.feathericons.Terminal
 import compose.icons.feathericons.Trash2
 import compose.icons.feathericons.Users
+import compose.icons.feathericons.User
 import compose.icons.feathericons.Wifi
 import compose.icons.feathericons.Zap
 import com.aiverse.feature.onboarding.domain.OnboardingStep
@@ -180,9 +182,12 @@ internal enum class SettingsSection(@param:StringRes val titleRes: Int) {
     Mcp(R.string.settings_mcp),
     Skills(R.string.settings_skills),
     Prompts(R.string.prompts_title),
+    Roles(R.string.settings_roles),
     Memory(R.string.settings_memory),
     PromptDetail(R.string.prompts_title),
     PromptEditor(R.string.prompts_title),
+    RoleDetail(R.string.settings_roles),
+    RoleEditor(R.string.settings_roles),
     SkillDetail(R.string.settings_skills),
     SkillEditor(R.string.settings_skills),
     SubAgents(R.string.settings_subagents),
@@ -227,9 +232,11 @@ private fun SettingsSection.depth(): Int = when (this) {
     // 同深度会让「编辑 → 详情」也被当成前进，返回时页面从右侧滑入，方向是反的。
     SettingsSection.SkillEditor,
     SettingsSection.SubAgentEditor,
-    SettingsSection.PromptEditor -> 3
+    SettingsSection.PromptEditor,
+    SettingsSection.RoleEditor -> 3
     SettingsSection.ProviderEditor,
     SettingsSection.PromptDetail,
+    SettingsSection.RoleDetail,
     SettingsSection.SkillDetail,
     SettingsSection.SubAgentDetail,
     SettingsSection.ContainerDownloads,
@@ -433,6 +440,7 @@ fun SettingsScreen(
                 "phoneControl" -> SettingsSection.PhoneControl
                 "search_provider" -> SettingsSection.SearchProvider
                 "default_models" -> SettingsSection.DefaultModels
+                "roles" -> SettingsSection.Roles
                 else -> SettingsSection.Menu
             }
         )
@@ -513,6 +521,10 @@ fun SettingsScreen(
     var showPromptsAnnouncement by remember { mutableStateOf(false) }
     // 编辑页返回目标：从详情进就回详情，从列表「+」进就回列表。
     var promptEditorReturn by remember { mutableStateOf(SettingsSection.Prompts) }
+    // 角色详情 / 编辑目标：selectedRole 供详情展示，editingRole 供编辑（null 表示新建）。
+    var selectedRole by remember { mutableStateOf<Role?>(null) }
+    var editingRole by remember { mutableStateOf<Role?>(null) }
+    var roleEditorReturn by remember { mutableStateOf(SettingsSection.Roles) }
     // 技能编辑目标：null 表示新建一个；编辑现有技能时指向被编辑的条目。
     var editingSkill by remember { mutableStateOf<SkillUiEntry?>(null) }
     // 编辑页的返回目标：从详情页进就回详情页，从列表顶栏「＋」进就回列表。
@@ -588,6 +600,8 @@ fun SettingsScreen(
         SettingsSection.SkillDetail -> SettingsSection.Skills
         SettingsSection.PromptEditor -> promptEditorReturn
         SettingsSection.PromptDetail -> SettingsSection.Prompts
+        SettingsSection.RoleEditor -> roleEditorReturn
+        SettingsSection.RoleDetail -> SettingsSection.Roles
         SettingsSection.SkillEditor -> skillEditorReturn
         SettingsSection.SubAgentDetail -> SettingsSection.SubAgents
         SettingsSection.SubAgentEditor -> subAgentEditorReturn
@@ -819,6 +833,23 @@ fun SettingsScreen(
                 )
             }
 
+            current == SettingsSection.RoleEditor -> {
+                val roleEditorViewModel: com.aiverse.feature.settings.presentation.RoleEditorViewModel =
+                    androidx.hilt.navigation.compose.hiltViewModel()
+                RoleEditorScreen(
+                    initial = editingRole,
+                    viewModel = roleEditorViewModel,
+                    onSaved = { _ ->
+                        roleEditorViewModel.clearSaveState()
+                        section = roleEditorReturn
+                    },
+                    onNavigateBack = {
+                        roleEditorViewModel.clearSaveState()
+                        section = roleEditorReturn
+                    }
+                )
+            }
+
             current == SettingsSection.RemoteServers ->
                 com.aiverse.feature.workspace.presentation.remote.RemoteServerScreen(
                     onNavigateBack = { section = SettingsSection.Menu }
@@ -837,6 +868,7 @@ fun SettingsScreen(
                 SettingsSection.SkillDetail -> "SkillDetail:${selectedSkill?.name.orEmpty()}"
                 SettingsSection.SubAgentDetail -> "SubAgentDetail:${selectedSubAgent?.name.orEmpty()}"
                 SettingsSection.PromptDetail -> "PromptDetail:${selectedPrompt?.number ?: 0}"
+                SettingsSection.RoleDetail -> "RoleDetail:${selectedRole?.id ?: ""}"
                 else -> current.name
             }
             sectionStateHolder.SaveableStateProvider(stateKey) {
@@ -1135,6 +1167,40 @@ fun SettingsScreen(
                                 )
                             }
                         }
+                        SettingsSection.Roles -> {
+                            val rolesViewModel: com.aiverse.feature.settings.presentation.RolesViewModel =
+                                androidx.hilt.navigation.compose.hiltViewModel()
+                            val rolesState by rolesViewModel.state.collectAsStateWithLifecycle()
+                            if (rolesState.roles.any { !it.isBuiltin }) {
+                                SelectionToggleAction(selectionFor(SettingsSection.Roles))
+                            }
+                            IconButton(onClick = {
+                                editingRole = null
+                                roleEditorReturn = SettingsSection.Roles
+                                section = SettingsSection.RoleEditor
+                            }) {
+                                Icon(
+                                    FeatherIcons.Plus,
+                                    contentDescription = stringResource(R.string.roles_add),
+                                    tint = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                        SettingsSection.RoleDetail -> selectedRole?.let { role ->
+                            IconButton(onClick = {
+                                editingRole = role
+                                roleEditorReturn = SettingsSection.RoleDetail
+                                section = SettingsSection.RoleEditor
+                            }) {
+                                Icon(
+                                    FeatherIcons.Edit2,
+                                    contentDescription = stringResource(R.string.roles_editor_edit),
+                                    tint = MaterialTheme.colorScheme.onBackground,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                         SettingsSection.Storage -> {
                             IconButton(onClick = { storageViewModel?.refresh() }) {
                                 Icon(
@@ -1383,7 +1449,37 @@ fun SettingsScreen(
                         }
                     }
                 }
+                SettingsSection.Roles -> {
+                    val rolesViewModel: com.aiverse.feature.settings.presentation.RolesViewModel =
+                        androidx.hilt.navigation.compose.hiltViewModel()
+                    val rolesState by rolesViewModel.state.collectAsStateWithLifecycle()
+                    RolesSection(
+                        roles = rolesState.roles,
+                        selection = selectionFor(SettingsSection.Roles),
+                        onOpenDetail = { role ->
+                            selectionFor(SettingsSection.Roles).exit()
+                            selectedRole = role
+                            section = SettingsSection.RoleDetail
+                        },
+                        onDelete = rolesViewModel::delete,
+                        onToggleEnabled = rolesViewModel::setEnabled,
+                        onBatchDelete = rolesViewModel::deleteByIds,
+                        onBatchSetEnabled = rolesViewModel::setEnabledBatch
+                    )
+                }
+                SettingsSection.RoleDetail -> {
+                    val rolesViewModel: com.aiverse.feature.settings.presentation.RolesViewModel =
+                        androidx.hilt.navigation.compose.hiltViewModel()
+                    val rolesState by rolesViewModel.state.collectAsStateWithLifecycle()
+                    selectedRole?.let { sel ->
+                        // 编辑/启停后列表实时刷新，详情优先展示最新快照，避免停留在保存前的旧值。
+                        val fresh = rolesState.roles.firstOrNull { it.id == sel.id } ?: sel
+                        LaunchedEffect(fresh.id, fresh.updatedAt) { selectedRole = fresh }
+                        RoleDetailSection(role = fresh)
+                    }
+                }
                 SettingsSection.PromptEditor -> Unit
+                SettingsSection.RoleEditor -> Unit
                 SettingsSection.SkillDetail -> selectedSkill?.let { entry ->
                     SkillDetailSection(
                         entry = entry,
@@ -2223,6 +2319,12 @@ internal fun SettingsMenu(
                 icon = FeatherIcons.MessageSquare,
                 title = stringResource(SettingsSection.Prompts.titleRes),
                 onClick = { onOpen(SettingsSection.Prompts) }
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.User,
+                title = stringResource(SettingsSection.Roles.titleRes),
+                onClick = { onOpen(SettingsSection.Roles) }
             )
             SettingsDivider()
             SettingsRow(

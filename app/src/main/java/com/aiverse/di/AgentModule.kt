@@ -9,6 +9,7 @@ import com.aiverse.feature.agent.data.local.dao.AgentMessageDao
 import com.aiverse.feature.agent.data.local.dao.ChatSessionDao
 import com.aiverse.feature.agent.data.local.dao.CheckpointDao
 import com.aiverse.feature.agent.data.local.dao.LlmCallRecordDao
+import com.aiverse.feature.agent.data.local.dao.RoleDao
 import com.aiverse.feature.agent.data.local.dao.TodoItemDao
 import com.aiverse.feature.backup.data.local.dao.BackupTargetDao
 import com.aiverse.feature.settings.data.local.dao.AIProviderDao
@@ -184,6 +185,12 @@ object AgentModule {
     @Singleton
     fun provideBackupTargetDao(database: AgentDatabase): BackupTargetDao {
         return database.backupTargetDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideRoleDao(database: AgentDatabase): RoleDao {
+        return database.roleDao()
     }
 
     @Provides

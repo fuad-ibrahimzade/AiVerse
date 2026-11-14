@@ -207,6 +207,11 @@ class SessionUseCase @Inject constructor(
         chatSessionDao.updateReasoningEffort(sessionId, effort)
     }
 
+    /** 绑定/切换会话角色；[roleId] 为 null 表示切回默认角色。 */
+    suspend fun updateRoleId(sessionId: String, roleId: String?) {
+        chatSessionDao.updateRoleId(sessionId, roleId)
+    }
+
     /**
      * 设定/覆盖会话 goal：重置轮次计数，并记录当前累计 token 作为消耗基线，状态置 ACTIVE。
      * [goal] 为 null/空白则清除目标。

@@ -133,6 +133,8 @@ import com.aiverse.feature.agent.presentation.OptimizeEvent
 import com.aiverse.feature.agent.presentation.QueuedRequest
 import com.aiverse.feature.agent.presentation.hasVisibleContent
 import com.aiverse.feature.agent.presentation.component.LocalChatFileAccess
+import com.aiverse.feature.agent.domain.model.Role
+import com.aiverse.feature.agent.presentation.RoleSwitcherViewModel
 import com.aiverse.feature.agent.domain.model.InstalledApp
 import com.aiverse.feature.onboarding.domain.OnboardingStep
 import com.aiverse.feature.onboarding.presentation.onboardingTarget
@@ -749,6 +751,8 @@ fun AIChatPanel(
     onOpenOptimizeModelSettings: () -> Unit = {},
     /** 附件「应用内预览」：打开编辑器并直接进预览模式（容器路径）。 */
     onOpenInEditor: (String) -> Unit = {},
+    /** 「管理角色」入口：跳设置页角色管理。 */
+    onOpenRoles: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val agentState by viewModel.agentState.collectAsStateWithLifecycle()
@@ -782,6 +786,15 @@ fun AIChatPanel(
     val messageEntryDelays = remember(messages, entryScheduler) { entryScheduler.schedule(messages) }
     val currentSessionState by viewModel.currentSessionState.collectAsStateWithLifecycle()
     val currentSession = currentSessionState
+    // 角色切换（issue #110）：顶栏入口 + 角色切换抽屉；不改 AIAgentViewModel 的 roleIdentity 接线。
+    val roleSwitcherViewModel: RoleSwitcherViewModel =
+        androidx.hilt.navigation.compose.hiltViewModel()
+    val roleSheetRoles by roleSwitcherViewModel.sheetRoles.collectAsStateWithLifecycle()
+    val sessionRoleId = currentSession?.roleId
+    val currentRole = remember(roleSheetRoles, sessionRoleId) {
+        roleSwitcherViewModel.resolveCurrentRole(sessionRoleId, roleSheetRoles)
+    }
+    var showRoleSwitcher by remember { mutableStateOf(false) }
     val sessionTitle = currentSession?.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.chat_new_session_btn)
     val sessionInputTokens = currentSession?.totalInputTokens ?: 0
     val sessionOutputTokens = currentSession?.totalOutputTokens ?: 0
@@ -1929,7 +1942,9 @@ fun AIChatPanel(
                 contextUsageDetail = contextUsageDetail,
                 compactionThresholdPercent = compactionThresholdPercent,
                 onCompactContext = { viewModel.compactCurrentSession() },
-                onOpenMessageTimeline = { showMessageTimeline = true }
+                onOpenMessageTimeline = { showMessageTimeline = true },
+                currentRole = currentRole,
+                onOpenRoleSwitcher = { showRoleSwitcher = true }
             )
             }
         }
@@ -2450,6 +2465,28 @@ fun AIChatPanel(
                     showMessageTimeline = false
                     if (sid != null) viewModel.locateMessage(sid, message.id)
                 }
+            )
+        }
+        // 角色切换抽屉（issue #110）：点顶栏角色入口打开；切换即写回会话 roleId（切回默认置 null）。
+        if (showRoleSwitcher) {
+            val sid = currentSessionId
+            RoleSheet(
+                roles = roleSheetRoles,
+                currentSessionRoleId = sessionRoleId,
+                onSelectRole = { role ->
+                    if (sid != null) {
+                        roleSwitcherViewModel.switchSessionRole(
+                            sessionId = sid,
+                            roleId = if (role.id == Role.DEFAULT_ROLE_ID) null else role.id
+                        )
+                    }
+                    showRoleSwitcher = false
+                },
+                onManageRoles = {
+                    showRoleSwitcher = false
+                    onOpenRoles()
+                },
+                onDismiss = { showRoleSwitcher = false }
             )
         }
         attachmentSheet?.let { attachment ->

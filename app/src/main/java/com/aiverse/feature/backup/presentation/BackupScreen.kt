@@ -525,6 +525,36 @@ private fun LocalBackupTab(
             )
             SettingsDivider()
             SettingsRow(
+                title = stringResource(R.string.backup_data_roles),
+                trailing = {
+                    AppSwitch(
+                        checked = exportOptions.roles,
+                        onCheckedChange = { onUpdateOptions(exportOptions.copy(roles = it)) }
+                    )
+                }
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = stringResource(R.string.backup_data_custom_prompts),
+                trailing = {
+                    AppSwitch(
+                        checked = exportOptions.customPrompts,
+                        onCheckedChange = { onUpdateOptions(exportOptions.copy(customPrompts = it)) }
+                    )
+                }
+            )
+            SettingsDivider()
+            SettingsRow(
+                title = stringResource(R.string.backup_data_media_files),
+                trailing = {
+                    AppSwitch(
+                        checked = exportOptions.mediaFiles,
+                        onCheckedChange = { onUpdateOptions(exportOptions.copy(mediaFiles = it)) }
+                    )
+                }
+            )
+            SettingsDivider()
+            SettingsRow(
                 title = stringResource(R.string.backup_data_memories),
                 trailing = {
                     AppSwitch(
@@ -970,5 +1000,8 @@ private fun buildImportSummary(context: android.content.Context, stats: RestoreS
     if (stats.favorites > 0) appendLine(context.getString(R.string.backup_stat_favorites, stats.favorites))
     if (stats.skills > 0) appendLine(context.getString(R.string.backup_stat_skills, stats.skills))
     if (stats.plugins > 0) appendLine(context.getString(R.string.backup_stat_plugins, stats.plugins))
+    if (stats.roles > 0) appendLine(context.getString(R.string.backup_stat_roles, stats.roles))
+    if (stats.customPrompts > 0) appendLine(context.getString(R.string.backup_stat_custom_prompts, stats.customPrompts))
+    if (stats.mediaFiles > 0) appendLine(context.getString(R.string.backup_stat_media_files, stats.mediaFiles))
     append(context.getString(R.string.backup_settings_covered))
 }

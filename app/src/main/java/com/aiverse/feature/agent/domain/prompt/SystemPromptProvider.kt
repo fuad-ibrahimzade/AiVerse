@@ -304,7 +304,14 @@ class SystemPromptProvider @Inject constructor(
         }
 
         // 1. 获取各个 Source 的基线快照。
-        val rawStatic = staticRuleSource.build(agentContext)
+        // 角色身份接手原 00 号：注入到静态基线最前（顶替其原位置），并同样参与 {{AIVERSE_*}} 变量展开。
+        val rawStatic = buildString {
+            agentContext.roleIdentity?.trim()?.takeIf { it.isNotEmpty() }?.let { identity ->
+                append(identity)
+                append("\n\n")
+            }
+            append(staticRuleSource.build(agentContext))
+        }
         val skillsContent = activeSkillsSource.build(agentContext)
         val subAgentsContent = subAgentListSource.build(agentContext)
         val memories = memoryListSource.build(agentContext)
@@ -335,6 +342,8 @@ class SystemPromptProvider @Inject constructor(
     /**
      * [PromptFragmentResolver.DISABLE_BUILTIN_FILE] 生效时：只输出 `prompts.custom/` 顶层的数字片段，
      * 不注入任何内置来源；动态内容仅通过 `{{AIVERSE_*}}` 变量按需取回。
+     *
+     * 与旧「禁用内置 = 全用自定义」一致：此模式下连默认角色的内置身份也不注入（角色身份属内置来源）。
      */
     private fun buildCustomOnly(ctx: AgentContext): String {
         val content = promptFragmentCatalog.renderCustomOnly(ctx.projectRoot)
