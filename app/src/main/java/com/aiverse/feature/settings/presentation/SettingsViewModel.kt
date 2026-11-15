@@ -710,6 +710,9 @@ class SettingsViewModel @Inject constructor(
     private val _maxNetworkRetries = MutableStateFlow(6)
     val maxNetworkRetries: StateFlow<Int> = _maxNetworkRetries.asStateFlow()
 
+    private val _maxSubagentRunning = MutableStateFlow(GeneralSettingsRepository.DEFAULT_MAX_SUBAGENT_RUNNING)
+    val maxSubagentRunning: StateFlow<Int> = _maxSubagentRunning.asStateFlow()
+
     private val _enterToSend = MutableStateFlow(false)
     val enterToSend: StateFlow<Boolean> = _enterToSend.asStateFlow()
 
@@ -1231,6 +1234,12 @@ class SettingsViewModel @Inject constructor(
             launch {
                 generalSettingsRepository.maxNetworkRetriesFlow.collectLatest {
                     _maxNetworkRetries.value = it
+                }
+            }
+
+            launch {
+                generalSettingsRepository.maxSubagentRunningFlow.collectLatest {
+                    _maxSubagentRunning.value = it
                 }
             }
 
@@ -2622,6 +2631,13 @@ class SettingsViewModel @Inject constructor(
     fun setMaxNetworkRetries(count: Int) {
         viewModelScope.launch {
             generalSettingsRepository.setMaxNetworkRetries(count)
+        }
+    }
+
+    /** 同时运行的子代理上限；下限 1，避免把子代理彻底禁用。 */
+    fun setMaxSubagentRunning(count: Int) {
+        viewModelScope.launch {
+            generalSettingsRepository.setMaxSubagentRunning(count)
         }
     }
 

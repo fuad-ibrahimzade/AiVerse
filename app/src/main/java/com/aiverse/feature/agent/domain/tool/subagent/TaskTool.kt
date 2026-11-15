@@ -54,7 +54,7 @@ import javax.inject.Inject
  * - `del`：删除指定子代理会话及其全部消息。
  * - `list`：列出当前会话的全部子代理及其状态。
  *
- * 最多同时允许 5 个运行中的子代理（create 时检查上限）。
+ * 同时运行的子代理数量受并发上限约束（create 时检查，上限由偏好设置决定，全局共享名额）。
  * 子代理不能嵌套创建子代理（其工具集中不含 `task`）。
  *
  * `create` 可用 `agent` 参数指定自定义子代理定义（`agents/<name>.md`），
@@ -90,7 +90,8 @@ class TaskTool @Inject constructor(
         }
     }
 
-    override val description = "管理子代理：创建、发消息、读取结果、停止、删除、列出。子代理拥有独立上下文，按所选代理的工具集工作，不能嵌套创建子代理；全局最多同时运行 5 个（所有会话共享名额）。任务完成后会通知主会话，无需轮询；运行中也可能主动发消息。用 send 可追加指令或继续追问已完成的子代理。创建时可用 tier 按任务难度选择模型档位（light 只读探索与机械活 / standard 单文件修改与常规修复 / strong 跨模块重构与疑难排查）；档位是否可用取决于用户在设置里的配置，未配置时按继承处理。"
+    override val description: String
+        get() = "管理子代理：创建、发消息、读取结果、停止、删除、列出。子代理拥有独立上下文，按所选代理的工具集工作，不能嵌套创建子代理；全局最多同时运行 ${eventBus.maxRunning} 个（所有会话共享名额，上限可在偏好设置里调整）。任务完成后会通知主会话，无需轮询；运行中也可能主动发消息。用 send 可追加指令或继续追问已完成的子代理。创建时可用 tier 按任务难度选择模型档位（light 只读探索与机械活 / standard 单文件修改与常规修复 / strong 跨模块重构与疑难排查）；档位是否可用取决于用户在设置里的配置，未配置时按继承处理。"
 
     /** tasks 数组中单个任务项的 JSON Schema */
     private val taskItemSchema: Map<String, Any> = mapOf(
@@ -284,7 +285,7 @@ class TaskTool @Inject constructor(
         if (!eventBus.tryReserveSlots(specs.size)) {
             val currentRunning = eventBus.activeCount
             return ToolResult.Error(
-                "子代理已达上限（全局最多 ${SubAgentEventBus.MAX_RUNNING} 个同时运行，当前已有 $currentRunning 个在运行），无法再同时派发 ${specs.size} 个，请先等待部分完成或用 stop 停止后再创建",
+                "子代理已达上限（全局最多 ${eventBus.maxRunning} 个同时运行，当前已有 $currentRunning 个在运行），无法再同时派发 ${specs.size} 个，请先等待部分完成或用 stop 停止后再创建",
                 "MAX_SUBAGENTS_REACHED"
             )
         }
@@ -632,7 +633,7 @@ class TaskTool @Inject constructor(
                 put("subagents", jsonArray)
                 put("count", subs.size)
                 put("runningCount", activeIds.size)
-                put("maxRunning", SubAgentEventBus.MAX_RUNNING)
+                put("maxRunning", eventBus.maxRunning)
             }
         )
     }

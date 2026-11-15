@@ -430,6 +430,7 @@ class BackupManagerImpl @Inject constructor(
         firstByteTimeoutSec = if (options.appSettings) generalSettingsRepository.firstByteTimeoutSecSnapshot() else 300,
         streamIdleTimeoutSec = if (options.appSettings) generalSettingsRepository.streamIdleTimeoutSecSnapshot() else 0,
         maxNetworkRetries = if (options.appSettings) generalSettingsRepository.maxNetworkRetriesSnapshot() else 6,
+        subAgentMaxRunning = if (options.appSettings) generalSettingsRepository.maxSubagentRunningSnapshot() else 6,
         enterToSend = if (options.appSettings) generalSettingsRepository.enterToSendSnapshot() else false,
         compactionThresholdPercent = if (options.appSettings) generalSettingsRepository.compactionThresholdPercentSnapshot() else 90,
         sendFileMaxSizeMb = if (options.appSettings) generalSettingsRepository.sendFileMaxSizeMbSnapshot() else 100,
@@ -882,6 +883,7 @@ class BackupManagerImpl @Inject constructor(
             generalSettingsRepository.restoreFirstByteTimeoutSec(meta.firstByteTimeoutSec)
             generalSettingsRepository.restoreStreamIdleTimeoutSec(meta.streamIdleTimeoutSec)
             generalSettingsRepository.restoreMaxNetworkRetries(meta.maxNetworkRetries)
+            generalSettingsRepository.restoreSubAgentMaxRunning(meta.subAgentMaxRunning)
             generalSettingsRepository.restoreEnterToSend(meta.enterToSend)
             generalSettingsRepository.restoreCompactionThresholdPercent(meta.compactionThresholdPercent)
             generalSettingsRepository.restoreSendFileMaxSizeMb(meta.sendFileMaxSizeMb)

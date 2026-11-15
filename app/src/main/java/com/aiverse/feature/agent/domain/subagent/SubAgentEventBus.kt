@@ -1,13 +1,19 @@
 package com.aiverse.feature.agent.domain.subagent
 
 import com.aiverse.core.util.FileLogger
+import com.aiverse.feature.settings.data.repository.GeneralSettingsRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -59,13 +65,32 @@ data class SubAgentEvent(
  * 在子会话上启动 AI 工作流；子会话工作流结束时 ViewModel 再发 COMPLETED/FAILED，
  * 父会话据此注入后台通知（类比 terminal 的 notify=true 异步回调）。
  *
- * 同时维护活跃子代理会话 id 集合，供 TaskTool 查询并发上限（最多 5 个运行中）。
+ * 同时维护活跃子代理会话 id 集合，供 TaskTool 查询并发上限（最多 [maxRunning] 个运行中，
+ * 上限由偏好设置决定，默认见 [GeneralSettingsRepository.DEFAULT_MAX_SUBAGENT_RUNNING]）。
  * 活跃集合与预留计数都在 [slotLock] 内更新：同一批工具并行执行时多个 task(create)
  * 会并发触达这里，读-改-写不持锁会丢更新（多占或漏占名额）。
  */
 @Singleton
-class SubAgentEventBus @Inject constructor() {
+class SubAgentEventBus @Inject constructor(
+    generalSettingsRepository: GeneralSettingsRepository
+) {
 
+    // 应用级作用域：单例生命周期与 App 进程一致（随进程退出而消亡），无需外部取消。
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** 同时运行的子代理上限；由偏好设置流驱动，工具层只读它、不自己写一份。 */
+    @Volatile var maxRunning: Int = GeneralSettingsRepository.DEFAULT_MAX_SUBAGENT_RUNNING
+        private set
+
+    init {
+        scope.launch {
+            generalSettingsRepository.maxSubagentRunningFlow.collectLatest { maxRunning = it }
+        }
+    }
+
+    // 缓冲容量与并发上限无关，保留 64：正常时一个批量任务的生命周期事件远低于该量级。
+    // 但并发上限可由偏好设置调大，调到过大时生命周期事件可能逼近缓冲容量，
+    // 因此必须在下面 tryEmit 失败时留痕，否则事件丢失难以排查。
     private val _events = MutableSharedFlow<SubAgentEvent>(extraBufferCapacity = 64)
     val events: SharedFlow<SubAgentEvent> = _events.asSharedFlow()
 
@@ -81,8 +106,8 @@ class SubAgentEventBus @Inject constructor() {
     /** 运行中的子代理数量（含已预留未创建的）。 */
     val activeCount: Int get() = synchronized(slotLock) { _activeSubSessionIds.value.size + reservedSlots }
 
-    /** 是否已达并发上限（含已预留未创建的）。 */
-    val isFull: Boolean get() = activeCount >= MAX_RUNNING
+    /** 是否已达并发上限（含已预留未创建的）；[maxRunning] 在首帧偏好设置到达前按默认值判定。 */
+    val isFull: Boolean get() = activeCount >= maxRunning
 
     /**
      * 为一次批量创建原子地占住 [count] 个并发名额：检查与占位在同一锁内完成，
@@ -93,7 +118,7 @@ class SubAgentEventBus @Inject constructor() {
         if (count <= 0) return true
         synchronized(slotLock) {
             val active = _activeSubSessionIds.value.size
-            if (active + reservedSlots + count > MAX_RUNNING) return false
+            if (active + reservedSlots + count > maxRunning) return false
             reservedSlots += count
             return true
         }
@@ -143,7 +168,7 @@ class SubAgentEventBus @Inject constructor() {
             }
         }
         // 缓冲满时丢弃事件会造成「子会话已建但永不启动」「父代理等不到完成通知」，
-        // 必须留痕便于排查（正常 5 个并发远够 64 的缓冲，出现即异常）。
+        // 必须留痕便于排查（并发上限可由偏好设置调大，设得过大可能挤爆缓冲，出现即异常）。
         if (!_events.tryEmit(event)) {
             FileLogger.e(TAG, "事件缓冲已满，事件被丢弃: ${event.type} sub=${event.subSessionId}")
         }
@@ -153,10 +178,7 @@ class SubAgentEventBus @Inject constructor() {
     private val seqCounter = java.util.concurrent.atomic.AtomicLong(0)
     fun nextSeq(): Long = seqCounter.incrementAndGet()
 
-    companion object {
-        private const val TAG = "SubAgentEventBus"
-
-        /** 同时运行的子代理上限。判定以此为准，工具层只引用不自己再写一份。 */
-        const val MAX_RUNNING = 5
+    private companion object {
+        const val TAG = "SubAgentEventBus"
     }
 }

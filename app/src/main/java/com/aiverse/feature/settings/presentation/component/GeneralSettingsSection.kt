@@ -64,6 +64,8 @@ internal fun GeneralSettingsSection(
     onSetGoalMaxTurns: (Int) -> Unit,
     goalMaxTokens: Int,
     onSetGoalMaxTokens: (Int) -> Unit,
+    maxSubagentRunning: Int,
+    onSetMaxSubagentRunning: (Int) -> Unit,
     deleteExternalWorkspaceSessions: Boolean,
     onToggleDeleteExternalWorkspaceSessions: (Boolean) -> Unit
 ) {
@@ -75,6 +77,7 @@ internal fun GeneralSettingsSection(
     var editingSendFileMaxSize by remember { mutableStateOf(false) }
     var editingGoalMaxTurns by remember { mutableStateOf(false) }
     var editingGoalMaxTokens by remember { mutableStateOf(false) }
+    var editingMaxSubagentRunning by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -248,6 +251,23 @@ internal fun GeneralSettingsSection(
                 }
             )
         }
+
+        SettingsGroupHeader(text = stringResource(R.string.settings_general_subagent))
+        SettingsGroup {
+            SettingsRow(
+                icon = null,
+                title = stringResource(R.string.settings_subagent_max_running),
+                subtitle = stringResource(R.string.settings_subagent_max_running_desc),
+                onClick = { editingMaxSubagentRunning = true },
+                trailing = {
+                    Text(
+                        text = stringResource(R.string.settings_subagent_max_running_count, maxSubagentRunning),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.semanticColors.subtleText
+                    )
+                }
+            )
+        }
     }
 
     if (showStartupSessionSheet) {
@@ -297,6 +317,21 @@ internal fun GeneralSettingsSection(
                 editingMaxNetworkRetries = false
             },
             onDismiss = { editingMaxNetworkRetries = false }
+        )
+    }
+
+    if (editingMaxSubagentRunning) {
+        NumberInputDialog(
+            title = stringResource(R.string.settings_subagent_max_running),
+            initialValue = maxSubagentRunning,
+            hint = stringResource(R.string.settings_subagent_max_running_input_hint),
+            minValue = 1,
+            maxValue = 32,
+            onConfirm = {
+                onSetMaxSubagentRunning(it)
+                editingMaxSubagentRunning = false
+            },
+            onDismiss = { editingMaxSubagentRunning = false }
         )
     }
 

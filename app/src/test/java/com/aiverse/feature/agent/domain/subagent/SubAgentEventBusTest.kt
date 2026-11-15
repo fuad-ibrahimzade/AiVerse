@@ -1,5 +1,9 @@
 package com.aiverse.feature.agent.domain.subagent
 
+import com.aiverse.feature.settings.data.repository.GeneralSettingsRepository
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -11,13 +15,21 @@ import org.junit.Test
  */
 class SubAgentEventBusTest {
 
+    /** 构造一个并发上限为 [limit] 的事件总线（上限来自偏好设置流，默认 6）。 */
+    private fun makeBus(limit: Int = GeneralSettingsRepository.DEFAULT_MAX_SUBAGENT_RUNNING): SubAgentEventBus {
+        val repository = mockk<GeneralSettingsRepository> {
+            every { maxSubagentRunningFlow } returns flowOf(limit)
+        }
+        return SubAgentEventBus(repository)
+    }
+
     private fun spawn(bus: SubAgentEventBus, id: String) = bus.emit(
         SubAgentEvent(subSessionId = id, parentSessionId = "parent", type = SubAgentEventType.SPAWNED)
     )
 
     @Test
     fun spawn_marksActive() {
-        val bus = SubAgentEventBus()
+        val bus = makeBus()
         spawn(bus, "sub-1")
 
         assertEquals(setOf("sub-1"), bus.activeSubSessionIds.value)
@@ -32,7 +44,7 @@ class SubAgentEventBusTest {
             SubAgentEventType.FAILED,
             SubAgentEventType.STOPPED
         ).forEach { type ->
-            val bus = SubAgentEventBus()
+            val bus = makeBus()
             spawn(bus, "sub-1")
             bus.emit(SubAgentEvent(subSessionId = "sub-1", parentSessionId = "parent", type = type))
 
@@ -42,8 +54,9 @@ class SubAgentEventBusTest {
 
     @Test
     fun isFull_atMaxRunning() {
-        val bus = SubAgentEventBus()
-        repeat(SubAgentEventBus.MAX_RUNNING) { spawn(bus, "sub-$it") }
+        val bus = makeBus()
+        val limit = bus.maxRunning
+        repeat(limit) { spawn(bus, "sub-$it") }
 
         assertTrue(bus.isFull)
 
@@ -54,7 +67,7 @@ class SubAgentEventBusTest {
     /** 用户手动停止走 release：必须真的交回槽位，否则上限被永久占用。 */
     @Test
     fun release_freesSlotAndReportsWhetherItWasActive() {
-        val bus = SubAgentEventBus()
+        val bus = makeBus()
         spawn(bus, "sub-1")
 
         assertTrue(bus.release("sub-1"))
@@ -67,7 +80,7 @@ class SubAgentEventBusTest {
      */
     @Test
     fun release_isIdempotentForUnknownId() {
-        val bus = SubAgentEventBus()
+        val bus = makeBus()
         spawn(bus, "sub-1")
         bus.release("sub-1")
 
@@ -77,7 +90,7 @@ class SubAgentEventBusTest {
 
     @Test
     fun release_doesNotTouchOtherSubAgents() {
-        val bus = SubAgentEventBus()
+        val bus = makeBus()
         spawn(bus, "sub-1")
         spawn(bus, "sub-2")
 
@@ -90,19 +103,21 @@ class SubAgentEventBusTest {
 
     @Test
     fun reserve_countsAgainstLimitUntilSpawned() {
-        val bus = SubAgentEventBus()
-        assertTrue(bus.tryReserveSlots(3))
+        val bus = makeBus()
+        val limit = bus.maxRunning
+        val firstBatch = limit - 2
+        assertTrue(bus.tryReserveSlots(firstBatch))
 
         // 预留未落地时 active 集合还是空，但计数必须把预留算进去，否则并行的创建会双双通过检查
         assertEquals(0, bus.activeSubSessionIds.value.size)
-        assertEquals(3, bus.activeCount)
-        assertFalse("3 预留 + 3 再要 > 5，应拒绝", bus.tryReserveSlots(3))
-        assertTrue("3 预留 + 2 再要 = 5，应允许", bus.tryReserveSlots(2))
+        assertEquals(firstBatch, bus.activeCount)
+        assertFalse("再要 3 个就超出上限，应拒绝", bus.tryReserveSlots(3))
+        assertTrue("恰好补满上限应允许", bus.tryReserveSlots(limit - firstBatch))
     }
 
     @Test
     fun spawned_consumesOneReservation() {
-        val bus = SubAgentEventBus()
+        val bus = makeBus()
         bus.tryReserveSlots(2)
 
         spawn(bus, "sub-1")
@@ -118,7 +133,7 @@ class SubAgentEventBusTest {
 
     @Test
     fun releaseSlots_returnsUnusedReservations() {
-        val bus = SubAgentEventBus()
+        val bus = makeBus()
         bus.tryReserveSlots(3)
         spawn(bus, "sub-1")
 
@@ -132,15 +147,17 @@ class SubAgentEventBusTest {
 
     @Test
     fun reserve_beyondMaxIsRejected() {
-        val bus = SubAgentEventBus()
-        assertFalse(bus.tryReserveSlots(SubAgentEventBus.MAX_RUNNING + 1))
-        assertTrue(bus.tryReserveSlots(SubAgentEventBus.MAX_RUNNING))
+        val bus = makeBus()
+        val limit = bus.maxRunning
+        assertFalse(bus.tryReserveSlots(limit + 1))
+        assertTrue(bus.tryReserveSlots(limit))
     }
 
     /** 并发 reserve 总占位不会超过上限：串行循环里每次读到的都是最新计数。 */
     @Test
     fun reserve_concurrentRequestsDoNotOversubscribe() {
-        val bus = SubAgentEventBus()
+        val bus = makeBus()
+        val limit = bus.maxRunning
         val acquired = java.util.concurrent.atomic.AtomicInteger()
         val threads = (1..20).map {
             Thread {
@@ -155,7 +172,7 @@ class SubAgentEventBusTest {
         threads.forEach { it.start() }
         threads.forEach { it.join() }
 
-        assertEquals("并发下恰好只有 5 个线程能占住名额", SubAgentEventBus.MAX_RUNNING, acquired.get())
-        assertEquals(SubAgentEventBus.MAX_RUNNING, bus.activeCount)
+        assertEquals("并发下恰好只有 $limit 个线程能占住名额", limit, acquired.get())
+        assertEquals(limit, bus.activeCount)
     }
 }

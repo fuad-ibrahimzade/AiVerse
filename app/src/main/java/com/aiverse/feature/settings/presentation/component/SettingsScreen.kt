@@ -307,6 +307,7 @@ fun SettingsScreen(
     val firstByteTimeoutSec by viewModel.firstByteTimeoutSec.collectAsStateWithLifecycle()
     val streamIdleTimeoutSec by viewModel.streamIdleTimeoutSec.collectAsStateWithLifecycle()
     val maxNetworkRetries by viewModel.maxNetworkRetries.collectAsStateWithLifecycle()
+    val maxSubagentRunning by viewModel.maxSubagentRunning.collectAsStateWithLifecycle()
     val enterToSend by viewModel.enterToSend.collectAsStateWithLifecycle()
     val compactionThresholdPercent by viewModel.compactionThresholdPercent.collectAsStateWithLifecycle()
     val sendFileMaxSizeMb by viewModel.sendFileMaxSizeMb.collectAsStateWithLifecycle()
@@ -1240,6 +1241,8 @@ fun SettingsScreen(
                     onSetStreamIdleTimeoutSec = { viewModel.setStreamIdleTimeoutSec(it) },
                     maxNetworkRetries = maxNetworkRetries,
                     onSetMaxNetworkRetries = { viewModel.setMaxNetworkRetries(it) },
+                    maxSubagentRunning = maxSubagentRunning,
+                    onSetMaxSubagentRunning = { viewModel.setMaxSubagentRunning(it) },
                     enterToSend = enterToSend,
                     onToggleEnterToSend = { viewModel.setEnterToSend(it) },
                     compactionThresholdPercent = compactionThresholdPercent,

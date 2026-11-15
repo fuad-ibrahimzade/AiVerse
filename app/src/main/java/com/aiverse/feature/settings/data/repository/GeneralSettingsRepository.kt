@@ -31,9 +31,9 @@ enum class StartupSessionMode {
 /**
  * 「偏好设置」里的用户偏好。
  *
- * 目前八项：拉取模型成功后是否自动移除远端已不存在的本地模型（默认开启）、
+ * 目前九项：拉取模型成功后是否自动移除远端已不存在的本地模型（默认开启）、
  * 启动时进入新会话还是最近会话（默认打开最近会话）、首字 / 数据块间隔超时（秒）、
- * 网络请求的最大重试次数（默认 6）、回车发送、自动压缩阈值、
+ * 网络请求的最大重试次数（默认 6）、子代理并发上限（默认 6）、回车发送、自动压缩阈值、
  * sendFile 单个文件大小上限（默认 100MB），
  * 以及移除外部本地工作区时是否一并删除其聊天记录（默认关闭）。
  * DataStore 用法与 [KeepaliveSettingsRepository] 一致。
@@ -42,12 +42,13 @@ enum class StartupSessionMode {
 class GeneralSettingsRepository @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) {
-    private companion object {
+    internal companion object {
         val AUTO_REMOVE_STALE_MODELS_KEY = booleanPreferencesKey("auto_remove_stale_models")
         val STARTUP_SESSION_MODE_KEY = stringPreferencesKey("startup_session_mode")
         val FIRST_BYTE_TIMEOUT_SEC_KEY = intPreferencesKey("first_byte_timeout_sec")
         val STREAM_IDLE_TIMEOUT_SEC_KEY = intPreferencesKey("stream_idle_timeout_sec")
         val MAX_NETWORK_RETRIES_KEY = intPreferencesKey("max_network_retries")
+        val MAX_SUBAGENT_RUNNING_KEY = intPreferencesKey("max_subagent_running")
         val ENTER_TO_SEND_KEY = booleanPreferencesKey("enter_to_send")
         val COMPACTION_THRESHOLD_PERCENT_KEY = intPreferencesKey("compaction_threshold_percent")
         val SENDFILE_MAX_SIZE_MB_KEY = intPreferencesKey("sendfile_max_size_mb")
@@ -67,6 +68,9 @@ class GeneralSettingsRepository @Inject constructor(
 
         /** 网络重试次数默认 6，与原硬编码值一致。 */
         const val DEFAULT_MAX_NETWORK_RETRIES = 6
+
+        /** 子代理并发上限默认 6，取代原先写死的 5。 */
+        const val DEFAULT_MAX_SUBAGENT_RUNNING = 6
 
         /** 自动压缩阈值默认 85%。 */
         const val DEFAULT_COMPACTION_THRESHOLD_PERCENT = 85
@@ -169,6 +173,23 @@ class GeneralSettingsRepository @Inject constructor(
     suspend fun maxNetworkRetriesSnapshot(): Int = maxNetworkRetriesFlow.first()
 
     suspend fun restoreMaxNetworkRetries(count: Int) = setMaxNetworkRetries(count)
+
+    /** 同时运行的子代理上限；未设置时回退到 6，下限 1（设成 0 会让子代理彻底不可用）。 */
+    val maxSubagentRunningFlow: Flow<Int> = context.generalDataStore.data.map {
+        (it[MAX_SUBAGENT_RUNNING_KEY] ?: DEFAULT_MAX_SUBAGENT_RUNNING).coerceAtLeast(1)
+    }
+
+    suspend fun setMaxSubagentRunning(count: Int) {
+        context.generalDataStore.edit { it[MAX_SUBAGENT_RUNNING_KEY] = count.coerceAtLeast(1) }
+    }
+
+    /** 冷读一次子代理并发上限。 */
+    suspend fun maxSubagentRunning(): Int = maxSubagentRunningFlow.first()
+
+    /** 备份快照：子代理并发上限。 */
+    suspend fun maxSubagentRunningSnapshot(): Int = maxSubagentRunningFlow.first()
+
+    suspend fun restoreSubAgentMaxRunning(count: Int) = setMaxSubagentRunning(count)
 
     /** 回车键是否直接发送消息；默认关闭（回车换行，由发送按钮发送）。 */
     val enterToSendFlow: Flow<Boolean> =
