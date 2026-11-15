@@ -302,6 +302,7 @@ Room：`feature/agent/data/local/database/AgentDatabase.kt` + 各 DAO。迁移�
 - **提供商预设只在仓库数据文件维护**：新增或调整内置 AI 供应商，**只改 `data/providers.json`**；**不要**同步改 `app/src/main/assets/providers.json`（内置兜底快照，随发版固化）与 `docs-site/` 文档。
 - **容器镜像目录由脚本生成，禁止手改**：`data/container-images.json` 由 CI 跑 `scripts/sync-container-images.py` 生成；`app/src/main/assets/container-images.json` 是内置兜底快照，发版前用同一脚本刷新。增删发行版或改镜像源，改脚本配置或 `sources` 表，不要改生成结果。
 - **文档目录约定**：`docs-site/docs/` 是文档唯一事实源，`guide/` 放功能说明、`advanced/` 放环境搭建与进阶教程。构建时由 `syncAiDocs` task 复制到 `assets/docs/`，AI 在容器内看到的是 `~/.aiverse/docs/{guide,advanced}/*.md`。**面向用户书写**：讲清怎么做、会看到什么、出错怎么办；变量名、错误码、内部实现路径属于 `prompts/`，别写进用户文档。
+- **中英文文档必须同时写（硬规则）**：`docs-site/docs/` 下中文（`guide/`、`advanced/`）与英文（`en/guide/`、`en/`）一一对应，**改中文必须同步改英文，不允许只交一种语言**。改了 `guide/*.md` → 同步 `en/guide/` 对应页；改了隐私/协议 → 同步 `en/privacy.md`、`en/terms.md`；新增文档页 → 中英文成对新建，并同步加进侧栏（`.vitepress/config.ts`）与 `guide/overview.md`、`en/guide/overview.md` 索引。英文要语义对齐、术语一致，不是机翻堆砌。
 
 **变更影响矩阵**：
 
