@@ -11,6 +11,7 @@
 | 功能 | 说明 |
 | --- | --- |
 | 聊天交互与工作区 | 标题栏、侧边栏、工具栏、消息队列、工作区切换、消息收藏 → [文档](https://aivapp.cn/md/guide/chat.md) |
+| 角色系统 | 为会话绑定 AI 人设，可自定义与启停，新建会话沿用上次角色（1.0.3 起） → [文档](https://aivapp.cn/md/guide/roles.md) |
 | 运行模式（四种模式） | Build / Plan / Auto / Expert 的权限控制与场景 → [文档](https://aivapp.cn/md/guide/modes.md) |
 | 会话目标（Goal） | `/goal` 设定目标，AI 自主循环推进至达成或预算耗尽（1.0.0 起）→ [文档](https://aivapp.cn/md/guide/goal.md) |
 | 检查点与撤销 | AI 修改前自动快照，支持一键安全回滚 → [文档](https://aivapp.cn/md/guide/checkpoint.md) |

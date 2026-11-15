@@ -47,6 +47,7 @@ import com.aiverse.feature.settings.data.repository.BalanceSettingsRepository
 import com.aiverse.feature.settings.data.remote.BalanceFetcher
 import com.aiverse.feature.settings.data.repository.ContainerSettingsRepository
 import com.aiverse.feature.settings.data.repository.DefaultModelSettingsRepository
+import com.aiverse.feature.settings.data.repository.DefaultRoleSettingsRepository
 import com.aiverse.feature.settings.data.repository.ExecutionMode
 import com.aiverse.feature.settings.data.repository.GeneralSettingsRepository
 import com.aiverse.feature.settings.data.repository.InputBarPrefs
@@ -175,6 +176,7 @@ class AIAgentViewModel @Inject constructor(
     private val modelCostCalculator: ModelCostCalculator,
     private val aiProviderRepository: AIProviderRepository,
     private val defaultModelSettingsRepository: DefaultModelSettingsRepository,
+    private val defaultRoleSettingsRepository: DefaultRoleSettingsRepository,
     private val modelReasoningEffortRepository: ModelReasoningEffortRepository,
     private val toolPermissionManager: ToolPermissionManager,
     private val askUserQuestionManager: AskUserQuestionManager,
@@ -3966,11 +3968,16 @@ class AIAgentViewModel @Inject constructor(
         } else {
             ReasoningEffort.MEDIUM.name
         }
+        // 「上次选择角色」：仅当角色仍存在且启用时沿用；默认角色/未设置/已停用均回退 null（默认角色）。
+        val roleId = defaultRoleSettingsRepository.getDefaultRoleId()
+            ?.takeIf { it != Role.DEFAULT_ROLE_ID }
+            ?.takeIf { id -> roleDao.getById(id)?.enabled == true }
         return sessionUseCase.newSessionEntity(
             workspacePath = workspacePath,
             providerId = providerId,
             model = model,
-            reasoningEffort = effort
+            reasoningEffort = effort,
+            roleId = roleId
         )
     }
 

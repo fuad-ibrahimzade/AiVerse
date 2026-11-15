@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.aiverse.feature.agent.data.local.dao.RoleDao
 import com.aiverse.feature.agent.domain.model.Role
 import com.aiverse.feature.agent.domain.session.SessionUseCase
+import com.aiverse.feature.settings.data.repository.DefaultRoleSettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -22,7 +23,8 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class RoleSwitcherViewModel @Inject constructor(
     private val roleDao: RoleDao,
-    private val sessionUseCase: SessionUseCase
+    private val sessionUseCase: SessionUseCase,
+    private val defaultRoleSettingsRepository: DefaultRoleSettingsRepository
 ) : ViewModel() {
 
     /**
@@ -51,10 +53,11 @@ class RoleSwitcherViewModel @Inject constructor(
         return roles.firstOrNull { it.id == targetId }
     }
 
-    /** 切换会话角色并落库；[roleId] 为 null 表示切回默认角色。 */
+    /** 切换会话角色并落库；[roleId] 为 null 表示切回默认角色。同时记录「上次选择角色」，供下次新建会话沿用（issue #130）。 */
     fun switchSessionRole(sessionId: String, roleId: String?) {
         viewModelScope.launch {
             sessionUseCase.updateRoleId(sessionId, roleId)
+            defaultRoleSettingsRepository.setDefaultRole(roleId)
         }
     }
 }

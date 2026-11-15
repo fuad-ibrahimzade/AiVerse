@@ -47,7 +47,8 @@ class SessionUseCase @Inject constructor(
         workspacePath: String,
         providerId: String? = null,
         model: String? = null,
-        reasoningEffort: String = ReasoningEffort.MEDIUM.name
+        reasoningEffort: String = ReasoningEffort.MEDIUM.name,
+        roleId: String? = null
     ): ChatSessionEntity {
         val now = System.currentTimeMillis()
         return ChatSessionEntity(
@@ -58,7 +59,8 @@ class SessionUseCase @Inject constructor(
             updatedAt = now,
             providerId = providerId,
             model = model,
-            reasoningEffort = reasoningEffort
+            reasoningEffort = reasoningEffort,
+            roleId = roleId
         )
     }
 
