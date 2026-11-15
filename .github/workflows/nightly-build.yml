@@ -130,6 +130,24 @@ jobs:
           PREV=$(gh api "repos/$TARGET_REPO/tags" --paginate --jq '.[].name' 2>/dev/null \
                   | sed 's/^v//' | sort -V | tail -n1)
           echo "上一个版本: ${PREV:-无（首次发布）}"
+
+          # 提取「上一个测试版」release body 里的主仓库 commit SHA（格式「测试版构建（commit xxx）」），
+          # 用作 git log 生成自上个测试版以来变更列表的基线；拿不到或不在主仓库历史则回退为最近提交。
+          PREV_SHA=""
+          if [ -n "$PREV" ]; then
+            PREV_BODY=$(gh release view "$PREV" --repo "$TARGET_REPO" --json body -q .body 2>/dev/null || true)
+            if [ -n "$PREV_BODY" ]; then
+              PREV_SHA=$(echo "$PREV_BODY" | grep -oE 'commit [0-9a-f]{7,40}' | head -n1 | awk '{print $2}')
+            fi
+          fi
+          if [ -n "$PREV_SHA" ]; then
+            # 需同时满足：对象存在 且 是 HEAD 祖先（防止上个测试版从分叉分支构建，导致 PREV_SHA..HEAD 列表不准）
+            if ! git cat-file -e "${PREV_SHA}^{commit}" 2>/dev/null || ! git merge-base --is-ancestor "$PREV_SHA" HEAD 2>/dev/null; then
+              echo "警告：上次测试版 commit $PREV_SHA 不在主仓库 HEAD 历史（不存在或非祖先），回退为最近提交"
+              PREV_SHA=""
+            fi
+          fi
+          echo "上次测试版 commit: ${PREV_SHA:-未知（无法作为 git log 基线）}"
           if [ -z "$PREV" ]; then
             MAJOR=1; MINOR=0; PATCH=0
           else
@@ -149,11 +167,54 @@ jobs:
             gh release delete "$VER" --repo "$TARGET_REPO" --yes --cleanup-tag
           fi
 
+          # 生成 Release notes：固定提示段（保留原句）+ 自上个测试版以来的变更列表（主仓库 git log），拼成多行变量 NOTES 供 --notes 使用（不落临时文件）。
+          CHANGE_SUMMARY="无法确定上次构建基线"
+          if [ -n "$PREV_SHA" ]; then
+            CHANGELOG=$(git log --oneline --no-decorate "${PREV_SHA}..HEAD")
+            if [ -z "$(echo "$CHANGELOG" | tr -d '[:space:]')" ]; then
+              CHANGE_SUMMARY="自上个测试版以来无新提交"
+            else
+              TOTAL=$(echo "$CHANGELOG" | wc -l | tr -d '[:space:]')
+              CHANGE_SUMMARY="自上个测试版以来 ${TOTAL} 条提交"
+            fi
+          else
+            CHANGE_SUMMARY="无法确定上次构建基线，列出最近 20 条提交"
+          fi
+          NOTES="$(
+            printf '%s\n' "测试版构建（commit $SHA）。三架构 APK 见下方资产，按设备类型选择安装。测试版不代表最终版本，请勿二传。" "" "## 自上个测试版以来的变更"
+            if [ -n "$PREV_SHA" ]; then
+              if [ -z "$(echo "$CHANGELOG" | tr -d '[:space:]')" ]; then
+                printf '%s\n' "无（自上次测试版后无新提交）"
+              else
+                # 按 Conventional Commits 类型粗分组（固定顺序），无法识别的归入「其它」
+                for TYPE in feat fix refactor perf docs style test build ci chore; do
+                  GROUP=$(printf '%s\n' "$CHANGELOG" | grep -E "^[0-9a-f]+ ${TYPE}(\\(|:)" || true)
+                  if [ -n "$GROUP" ]; then
+                    printf '%s\n' "### $TYPE"
+                    printf '%s\n' "$GROUP" | sed -E "s/^[0-9a-f]+ ${TYPE}(\\([^)]*\\))?: /- /"
+                    printf '%s\n' ""
+                  fi
+                done
+                OTHER=$(printf '%s\n' "$CHANGELOG" | grep -vE "^[0-9a-f]+ (feat|fix|refactor|perf|docs|style|test|build|ci|chore)(\\(|:)" || true)
+                if [ -n "$OTHER" ]; then
+                  printf '%s\n' "### 其它"
+                  printf '%s\n' "$OTHER" | sed -E "s/^[0-9a-f]+ //" | sed 's/^/- /'
+                  printf '%s\n' ""
+                fi
+              fi
+            else
+              printf '%s\n' "无法确定上次构建基线，以下为最近提交：" ""
+              git log --oneline --no-decorate -20
+            fi
+          )"
+          echo "Release notes 已生成："
+          printf '%s\n' "$NOTES"
+
           # 三个 APK 各自独立上传为 release 资产（文件名固定，不带版本号），附使用说明 txt
           gh release create "$VER" \
             --repo "$TARGET_REPO" \
             --title "AiVerse 测试版 $VER" \
-            --notes "测试版构建（commit $SHA）。三架构 APK 见下方资产，按设备类型选择安装。测试版不代表最终版本，请勿二传。" \
+            --notes "$NOTES" \
             "dist/AiVerse-universal-beta.apk" \
             "dist/AiVerse-arm64-beta.apk" \
             "dist/AiVerse-x86_64-beta.apk" \
@@ -164,3 +225,4 @@ jobs:
           echo "- 版本: \`$VER\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- commit: \`$SHA\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- 发布: [yhdmgf/aiverse-beta Releases](https://github.com/yhdmgf/aiverse-beta/releases)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 变更: ${CHANGE_SUMMARY}（详见 [Release notes](https://github.com/$TARGET_REPO/releases/tag/$VER)）" >> "$GITHUB_STEP_SUMMARY"
