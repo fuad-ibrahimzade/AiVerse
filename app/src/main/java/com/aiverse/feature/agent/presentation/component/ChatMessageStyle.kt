@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -221,6 +222,36 @@ internal fun chatBubbleShadowElevation(role: ChatBubbleRole): Dp {
         ChatBubbleRole.ASSISTANT -> LocalAssistantBubbleStyle.current
     }
     return if (style == ChatBubbleStyle.SOFT_SHADOW) 4.dp else 0.dp
+}
+
+/**
+ * 助手气泡的统一容器：按当前助手气泡样式决定是否套容器。
+ *
+ * NO_BUBBLE 下正文直接铺在页面底色（扁平文档流）；其余样式套与用户同款的气泡容器
+ * （底色/描边/圆角/阴影均来自既有 chatBubble* 推导，样式经 CompositionLocal 读取）。
+ * 落库助手气泡与流式尾巴（StreamingBubble）共用此容器，保证流式输出与落库后视觉一致。
+ */
+@Composable
+internal fun AssistantBubbleContainer(
+    isChunkHeader: Boolean = true,
+    isChunkFooter: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    if (LocalAssistantBubbleStyle.current == ChatBubbleStyle.NO_BUBBLE) {
+        Box(Modifier.fillMaxWidth()) { content() }
+    } else {
+        Surface(
+            shape = chatBubbleShape(
+                ChatBubbleRole.ASSISTANT,
+                isChunkHeader = isChunkHeader,
+                isChunkFooter = isChunkFooter,
+            ),
+            color = chatBubbleColor(ChatBubbleRole.ASSISTANT),
+            border = chatBubbleBorder(ChatBubbleRole.ASSISTANT),
+            shadowElevation = chatBubbleShadowElevation(ChatBubbleRole.ASSISTANT),
+            modifier = Modifier.fillMaxWidth(),
+        ) { content() }
+    }
 }
 
 /** 1px 细线：扁平风格里唯一的分组手段。 */

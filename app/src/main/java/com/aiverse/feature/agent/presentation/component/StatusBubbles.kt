@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.aiverse.R
 import com.aiverse.core.theme.Brand
+import com.aiverse.core.theme.ChatBubbleRole
 import com.aiverse.core.theme.Spacing
 import com.aiverse.core.theme.LocalUIDensityTokens
 import com.aiverse.feature.agent.domain.provider.RetryErrorInfo
@@ -615,14 +616,22 @@ internal fun StreamingBubble(
 ) {
     val renderText = text
     val t = LocalUIDensityTokens.current
-    // 与落库助手正文同构：不套容器，直接铺在页面底色上，底部挂「生成中」的点
+    // 与落库助手正文同构：流式阶段也套同样的气泡容器（按当前助手气泡样式渲染底色/描边/圆角/阴影），
+    // 底部挂「生成中」的点；本轮结束后由落库的助手气泡无缝接管。
     Column(modifier = Modifier.fillMaxWidth()) {
-        MarkdownContent(
-            text = renderText,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.fillMaxWidth(),
-            cache = cache
-        )
+        AssistantBubbleContainer {
+            val (blockBackground, blockTextColor) = chatBlockColors(ChatBubbleRole.ASSISTANT)
+            MarkdownContent(
+                text = renderText,
+                color = chatBubbleTextColor(ChatBubbleRole.ASSISTANT),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                cache = cache,
+                blockBackground = blockBackground,
+                blockTextColor = blockTextColor,
+            )
+        }
         Spacer(Modifier.height(t.xs))
         TypingDots(color = MaterialTheme.colorScheme.primary, dotSize = 5.dp)
     }

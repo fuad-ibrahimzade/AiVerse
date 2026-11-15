@@ -66,7 +66,6 @@ import com.aiverse.core.theme.LocalUIDensityTokens
 import com.aiverse.core.theme.semanticColors
 import com.aiverse.core.theme.ChatBubbleRole
 import com.aiverse.core.theme.ChatBubbleStyle
-import com.aiverse.core.theme.LocalAssistantBubbleStyle
 import com.aiverse.core.theme.LocalUserBubbleStyle
 import com.aiverse.core.theme.LocalChatCodeFontSizeSp
 import com.aiverse.core.theme.LocalCodeWrapEnabled
@@ -436,7 +435,6 @@ internal fun AgentMessageItem(
                         } else {
                             // 助手正文：无气泡样式（NO_BUBBLE）下去掉包裹，正文直接铺在页面底色上（扁平文档流）；
                             // 其余样式套与用户同款的气泡容器。内部仍是 Markdown 文档流。
-                            val assistantBubbleStyle = LocalAssistantBubbleStyle.current
                             val chatFontSizeSp = LocalChatFontSizeSp.current
                             val codeFontSizeSp = LocalChatCodeFontSizeSp.current
                             val codeWrapEnabled = LocalCodeWrapEnabled.current
@@ -480,25 +478,11 @@ internal fun AgentMessageItem(
                                     }
                                 }
                             }
-                            if (assistantBubbleStyle == ChatBubbleStyle.NO_BUBBLE) {
-                                // 无气泡：AI 正文直接铺在页面，不套任何容器（仅保留选中与朗读高亮）。
-                                Box(modifier = Modifier.fillMaxWidth()) {
-                                    assistantBody()
-                                }
-                            } else {
-                                Surface(
-                                    shape = chatBubbleShape(
-                                        ChatBubbleRole.ASSISTANT,
-                                        isChunkHeader = isChunkHeader,
-                                        isChunkFooter = isChunkFooter,
-                                    ),
-                                    color = chatBubbleColor(ChatBubbleRole.ASSISTANT),
-                                    border = chatBubbleBorder(ChatBubbleRole.ASSISTANT),
-                                    shadowElevation = chatBubbleShadowElevation(ChatBubbleRole.ASSISTANT),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    assistantBody()
-                                }
+                            AssistantBubbleContainer(
+                                isChunkHeader = isChunkHeader,
+                                isChunkFooter = isChunkFooter,
+                            ) {
+                                assistantBody()
                             }
                         }
                     }
