@@ -1,10 +1,6 @@
 package com.aiverse.feature.settings.presentation.component
 
 import android.net.Uri
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,7 +21,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -52,7 +47,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,9 +60,11 @@ import com.aiverse.core.theme.semanticColors
 import com.aiverse.core.ui.AdaptiveModalBottomSheet
 import com.aiverse.core.ui.AppSwitch
 import com.aiverse.core.ui.AppTextField
+import com.aiverse.core.ui.ImagePickerField
 import com.aiverse.core.ui.SegmentedTabs
 import com.aiverse.core.ui.SwipeToDeleteRow
 import com.aiverse.core.ui.dialogTextFieldColors
+import com.aiverse.core.util.truncateToUtf8Bytes
 import com.aiverse.feature.settings.domain.model.WelcomeEntry
 import com.aiverse.feature.settings.domain.model.WelcomeEntryAction
 import com.aiverse.feature.settings.domain.model.WelcomeIconKind
@@ -104,13 +100,15 @@ import compose.icons.feathericons.Tag
 import compose.icons.feathericons.Target
 import compose.icons.feathericons.Terminal
 import compose.icons.feathericons.Tool
-import compose.icons.feathericons.Upload
 import compose.icons.feathericons.User
 import compose.icons.feathericons.Zap
 import java.util.UUID
 
 /** 欢迎卡片（新对话入口）数量上限，与仓库侧保持一致（仓库私有常量）。 */
 internal const val WELCOME_ENTRIES_MAX = 6
+
+/** 快捷入口文字图标（TEXT 分段）的 UTF-8 字节上限，与角色名称保持同一口径。 */
+private const val ICON_TEXT_MAX_BYTES = 12
 
 /** 矢量图标选择网格每行列数（图标槽位数量），保证排布整齐。 */
 private const val WELCOME_ICON_GRID_COLUMNS = 5
@@ -712,7 +710,7 @@ private fun WelcomeEntryPreviewCard(
 }
 
 /**
- * 图标选择弹层：矢量图标（Feather 网格）/ 文字（≤3 字）/ 上传图片（保存到本地路径）。
+ * 图标选择弹层：矢量图标（Feather 网格）/ 文字（限 [ICON_TEXT_MAX_BYTES] 字节）/ 上传图片（保存到本地路径）。
  * 点「完成」回传所选 [WelcomeIconKind] 与值。
  *
  * @param initialKind 当前图标类型（决定初始分段）。
@@ -741,34 +739,13 @@ internal fun WelcomeIconPickerSheet(
     }
     var text by remember { mutableStateOf(if (initialKind == WelcomeIconKind.TEXT) initialValue else "") }
     var imagePath by remember { mutableStateOf(if (initialKind == WelcomeIconKind.IMAGE) initialValue else "") }
-    var uploading by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    val imagePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            uploading = true
-            onSaveIconImage(uri) { path ->
-                uploading = false
-                if (path != null) {
-                    imagePath = path
-                } else {
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.settings_welcome_icon_upload_failed),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        }
-    }
     val sheetState = rememberModalBottomSheetState()
 
     // 「完成」是否可用：当前分段下已有合法选择（上传中或为空时禁用）。
     val canDone = when (selectedTab) {
         0 -> vectorIcon.isNotBlank()
         1 -> text.isNotBlank()
-        else -> imagePath.isNotBlank() && !uploading
+        else -> imagePath.isNotBlank()
     }
 
     AdaptiveModalBottomSheet(
@@ -807,18 +784,23 @@ internal fun WelcomeIconPickerSheet(
                 )
                 1 -> AppTextField(
                     value = text,
-                    onValueChange = { if (it.length <= 3) text = it },
+                    onValueChange = { text = it.truncateToUtf8Bytes(ICON_TEXT_MAX_BYTES) },
                     label = stringResource(R.string.settings_welcome_icon_text),
                     placeholder = stringResource(R.string.settings_welcome_icon_text_hint),
                     singleLine = true,
                     colors = dialogTextFieldColors()
                 )
-                else -> ImagePickerSection(
-                    imagePath = imagePath,
-                    uploading = uploading,
-                    onPick = {
-                        imagePicker.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                else -> ImagePickerField(
+                    path = imagePath,
+                    onPathChange = { imagePath = it },
+                    onSaveImage = onSaveIconImage,
+                    saveErrorRes = R.string.settings_welcome_icon_upload_failed,
+                    previewSize = 64.dp,
+                    preview = { value, size ->
+                        WelcomeEntryIconView(
+                            iconKind = WelcomeIconKind.IMAGE,
+                            iconValue = value,
+                            size = size
                         )
                     }
                 )
@@ -897,49 +879,6 @@ private fun VectorIconPickerSection(
     }
 }
 
-/** 上传图片分段内容：当前图标预览 + 选择图片按钮（含保存中状态）。 */
-@Composable
-private fun ImagePickerSection(
-    imagePath: String,
-    uploading: Boolean,
-    onPick: () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(Spacing.md)
-    ) {
-        if (imagePath.isNotBlank()) {
-            WelcomeEntryIconView(
-                iconKind = WelcomeIconKind.IMAGE,
-                iconValue = imagePath,
-                size = 64.dp
-            )
-        }
-        Button(
-            onClick = onPick,
-            enabled = !uploading,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (uploading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp
-                )
-            } else {
-                Icon(FeatherIcons.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
-            }
-            Spacer(Modifier.width(Spacing.sm))
-            Text(
-                stringResource(
-                    if (uploading) R.string.settings_welcome_icon_uploading
-                    else R.string.settings_welcome_icon_image_pick
-                )
-            )
-        }
-    }
-}
-
 /**
  * 欢迎卡片图标视图：VECTOR 用 Feather 矢量图标，TEXT 用文本渲染，IMAGE 用 coil 异步加载（圆角裁切），
  * EMOJI 为旧数据兼容回退（渲染默认矢量图标）。
@@ -977,7 +916,7 @@ internal fun WelcomeEntryIconView(
                     modifier = Modifier.size(size * 0.6f)
                 )
             }
-            // 文字图标：≤3 字，用小一号字号避免撑破固定图标槽。
+            // 文字图标：按字节限长（中文约 3~4 字），用小一号字号避免撑破固定图标槽。
             WelcomeIconKind.TEXT -> {
                 Text(
                     text = iconValue,

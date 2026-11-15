@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -25,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -43,7 +45,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.aiverse.R
 import com.aiverse.core.theme.LocalUIDensityTokens
+import com.aiverse.core.theme.Radius
+import com.aiverse.core.theme.Spacing
 import com.aiverse.core.ui.AppTextField
+import com.aiverse.core.ui.ImagePickerField
+import com.aiverse.core.ui.RoleAvatar
+import com.aiverse.core.util.truncateToUtf8Bytes
 import com.aiverse.feature.agent.domain.model.AvatarKind
 import com.aiverse.feature.agent.domain.model.Role
 import com.aiverse.feature.agent.domain.prompt.PromptFragment
@@ -59,8 +66,10 @@ import kotlinx.coroutines.withContext
 /**
  * 角色新建/编辑页：自带顶栏（返回 + 右上角保存），与 [PromptEditorScreen] 一致，不能嵌进设置页的 Scaffold。
  *
- * 名称限 4 个字；身份 Prompt 可导入 .md/.txt（正文写入身份，前导 `<!-- 描述 -->` 提取为简介）；头像分
- * Emoji / 图片 / 无三种，Emoji 存字符、图片存 URL 或本地路径。保存走 [RoleEditorViewModel] 落库。
+ * 名称按 UTF-8 字节数限制（[Role.NAME_MAX_BYTES]，约中文 8 字 / 英文 24 字），顶栏胶囊自带省略；
+ * 身份 Prompt 可导入 .md/.txt（正文写入身份，前导 `<!-- 描述 -->` 提取为简介）；头像分
+ * Emoji / 图片 / 无三种，Emoji 存字符、图片可手填 URL/路径或从相册选择（存本地路径）。
+ * 保存走 [RoleEditorViewModel] 落库。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,7 +115,8 @@ internal fun RoleEditorScreen(
                 Toast.makeText(context, R.string.roles_import_failed, Toast.LENGTH_SHORT).show()
             } else {
                 if (name.isBlank()) {
-                    name = fileName?.substringBeforeLast('.')?.trim()?.takeIf { it.isNotBlank() }?.take(4) ?: name
+                    name = (fileName?.substringBeforeLast('.')?.trim()?.takeIf { it.isNotBlank() })
+                        ?.truncateToUtf8Bytes(Role.NAME_MAX_BYTES) ?: name
                 }
                 if (description.isBlank()) {
                     description = PromptFragment.extractDescription(text)
@@ -195,7 +205,7 @@ internal fun RoleEditorScreen(
                 ) {
                     AppTextField(
                         value = name,
-                        onValueChange = { name = it.take(4) },
+                        onValueChange = { name = it.truncateToUtf8Bytes(Role.NAME_MAX_BYTES) },
                         label = stringResource(R.string.roles_field_name),
                         placeholder = stringResource(R.string.roles_field_name_placeholder),
                         singleLine = true
@@ -283,19 +293,38 @@ internal fun RoleEditorScreen(
                             onClick = { avatarKindName = AvatarKind.IMAGE.name }
                         )
                     }
-                    if (avatarKind != AvatarKind.NONE) {
+                    if (avatarKind == AvatarKind.EMOJI) {
                         AppTextField(
                             value = avatarValue,
                             onValueChange = { avatarValue = it },
                             label = stringResource(R.string.roles_field_avatar_value),
-                            placeholder = stringResource(
-                                if (avatarKind == AvatarKind.EMOJI) {
-                                    R.string.roles_field_avatar_emoji_placeholder
-                                } else {
-                                    R.string.roles_field_avatar_image_placeholder
-                                }
-                            ),
+                            placeholder = stringResource(R.string.roles_field_avatar_emoji_placeholder),
                             singleLine = true
+                        )
+                    } else if (avatarKind == AvatarKind.IMAGE) {
+                        ImagePickerField(
+                            path = avatarValue,
+                            onPathChange = { avatarValue = it },
+                            onSaveImage = { uri, onResult -> viewModel.saveAvatarImage(uri, onResult) },
+                            saveErrorRes = R.string.common_image_picker_save_failed,
+                            preview = { value, size ->
+                                RoleAvatar(
+                                    role = Role(
+                                        id = editingId,
+                                        name = name,
+                                        avatarKind = AvatarKind.IMAGE,
+                                        avatarValue = value
+                                    ),
+                                    size = size
+                                )
+                            }
+                        )
+                    }
+                    if (avatarKind != AvatarKind.NONE) {
+                        RoleAvatarPreviewCard(
+                            avatarKind = avatarKind,
+                            avatarValue = avatarValue,
+                            name = name
                         )
                     }
                 }
@@ -316,4 +345,44 @@ private fun AvatarKindChip(
         onClick = onClick,
         label = { Text(label) }
     )
+}
+
+/**
+ * 编辑页头像预览卡片：头像 + 名称（随表单实时联动），与快捷入口编辑弹层的预览卡片同一形态。
+ * 预览槽复用 [RoleAvatar]，避免各页各造一份头像渲染。
+ */
+@Composable
+private fun RoleAvatarPreviewCard(
+    avatarKind: AvatarKind,
+    avatarValue: String,
+    name: String
+) {
+    val t = LocalUIDensityTokens.current
+    Surface(
+        shape = RoundedCornerShape(Radius.mdLarge),
+        color = MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.lg),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RoleAvatar(
+                role = Role(
+                    id = "",
+                    name = name,
+                    avatarKind = avatarKind,
+                    avatarValue = avatarValue
+                ),
+                size = t.scale(48)
+            )
+            Spacer(Modifier.width(Spacing.md))
+            Text(
+                text = name.ifBlank { stringResource(R.string.roles_avatar_preview_name_placeholder) },
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
 }

@@ -43,5 +43,13 @@ data class Role(
     companion object {
         /** 内置默认角色 id：会话 [ChatSession.roleId] 为 null 时即绑定到它。 */
         const val DEFAULT_ROLE_ID = "role_default_builtin"
+
+        /**
+         * 角色名称的 UTF-8 字节上限（约 8 个中文字或 24 个英文字母）。
+         *
+         * 顶栏角色胶囊有最大宽度与省略号，长名称不会撑坏布局；按字节限而不是按字数限，
+         * 是为了让中英文都能输入到接近同一个展示宽度。
+         */
+        const val NAME_MAX_BYTES = 24
     }
 }

@@ -1,25 +1,20 @@
 package com.aiverse.feature.settings.data.repository
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
 import android.net.Uri
+import com.aiverse.core.util.savePickedImageToAppFiles
 import com.aiverse.feature.settings.domain.model.VECTOR_ICON_DEFAULT
 import com.aiverse.feature.settings.domain.model.WelcomeEntry
 import com.aiverse.feature.settings.domain.model.WelcomeIconKind
 import com.aiverse.feature.settings.domain.model.buildDefaultWelcomeEntries
 import com.aiverse.feature.settings.domain.model.defaultWelcomeEntries
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
@@ -130,32 +125,16 @@ class WelcomeEntriesRepository @Inject constructor(
     }
 
     /**
-     * 把所选图片保存为欢迎卡片图标：解码（采样控内存）→ 按最长边 [MAX_EDGE] 降采样 →
-     * 重编码 JPEG → 写 filesDir/[ICON_DIR]/icon_<ts>.jpg。
+     * 把所选图片保存为欢迎卡片图标，写 filesDir/[ICON_DIR]/icon_<ts>.jpg。
      *
-     * 返回写入文件的绝对路径（供存入 [WelcomeEntry.iconValue]）；失败（读取/解码/写盘任一环节）返回 null。
-     * 统一转 JPEG：图标不需要透明通道，且避免大 PNG 常驻内存。
+     * 返回写入文件的绝对路径（供存入 [WelcomeEntry.iconValue]）；失败返回 null。
      */
-    suspend fun saveIconImage(uri: Uri): String? {
-        val bytes = withContext(Dispatchers.IO) {
-            runCatching {
-                context.contentResolver.openInputStream(uri)?.use { input -> input.readBytes() }
-            }.getOrNull()
-        } ?: return null
-        val encoded = withContext(Dispatchers.IO) {
-            runCatching { normalizeToJpeg(bytes) }.getOrNull()
-        } ?: return null
-        val dir = File(context.filesDir, ICON_DIR)
-        dir.mkdirs()
-        val target = File(dir, "icon_${System.currentTimeMillis()}.jpg")
-        val written = withContext(Dispatchers.IO) {
-            runCatching {
-                target.outputStream().use { output -> output.write(encoded) }
-                target.length() > 0
-            }.getOrDefault(false)
-        }
-        return if (written) target.absolutePath else null
-    }
+    suspend fun saveIconImage(uri: Uri): String? = savePickedImageToAppFiles(
+        context = context,
+        uri = uri,
+        dirName = ICON_DIR,
+        filePrefix = "icon"
+    )
 
     /** 首次加载：无数据（或解析失败）时回退到预置项；否则返回持久化列表（含旧 emoji 数据迁移）。 */
     private fun loadFromPrefs(): List<WelcomeEntry> {
@@ -192,43 +171,6 @@ class WelcomeEntriesRepository @Inject constructor(
         }
     }
 
-    /**
-     * 把原图字节规整成最长边不超过 [MAX_EDGE] 的 JPEG。
-     * 先按采样档位解码控峰值内存，再用 Matrix 精确缩放到目标尺寸（不改方向，源图按原方向落盘）。
-     */
-    private fun normalizeToJpeg(source: ByteArray): ByteArray {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(source, 0, source.size, bounds)
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-            throw IllegalArgumentException("无法读取图片尺寸")
-        }
-        var sample = 1
-        while (sample < 32 &&
-            (bounds.outWidth / (sample * 2) >= MAX_EDGE || bounds.outHeight / (sample * 2) >= MAX_EDGE ||
-                bounds.outWidth.toLong() * bounds.outHeight / (sample.toLong() * sample) > DECODE_MAX_PIXELS)
-        ) {
-            sample *= 2
-        }
-        val decoded = BitmapFactory.decodeByteArray(
-            source, 0, source.size,
-            BitmapFactory.Options().apply { inSampleSize = sample }
-        ) ?: throw IllegalArgumentException("图片解码失败")
-        val longest = maxOf(decoded.width, decoded.height)
-        val scale = if (longest > MAX_EDGE) MAX_EDGE.toFloat() / longest else 1f
-        val bitmap = if (scale < 1f) {
-            val matrix = Matrix().apply { postScale(scale, scale) }
-            val scaled = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
-            if (scaled != decoded) decoded.recycle()
-            scaled
-        } else {
-            decoded
-        }
-        val output = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)
-        bitmap.recycle()
-        return output.toByteArray()
-    }
-
     private companion object {
         /** 欢迎卡片数量上限（含预置项与自定义项）。 */
         const val MAX_ENTRIES = 6
@@ -238,10 +180,5 @@ class WelcomeEntriesRepository @Inject constructor(
 
         /** 图片图标落盘子目录（位于 filesDir 下）。 */
         const val ICON_DIR = "welcome_icons"
-
-        /** 落盘图标最长边（像素）：卡片图标显示尺寸小，无需高分辨率。 */
-        const val MAX_EDGE = 512
-        const val DECODE_MAX_PIXELS = 4_000_000L
-        const val JPEG_QUALITY = 85
     }
 }

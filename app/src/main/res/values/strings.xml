@@ -149,7 +149,7 @@
     <string name="settings_welcome_icon_vector">图标</string>
     <string name="settings_welcome_icon_text">文字</string>
     <string name="settings_welcome_icon_image">上传图片</string>
-    <string name="settings_welcome_icon_text_hint">最多 3 个字</string>
+    <string name="settings_welcome_icon_text_hint">最多 4 个字或 12 个英文字符</string>
     <string name="settings_welcome_icon_uploading">正在保存图片…</string>
     <string name="settings_welcome_icon_image_pick">选择图片</string>
     <string name="settings_appearance_input_bar">输入框快捷栏</string>
@@ -174,7 +174,6 @@
     <string name="settings_appearance_code_line_number">显示行号</string>
     <string name="settings_appearance_user_bubble_opacity">用户气泡透明度</string>
     <string name="settings_appearance_assistant_bubble_opacity">AI 气泡透明度</string>
-    <string name="chat_code_expand">展开全部</string>
     <string name="settings_appearance_ui_scale">界面缩放</string>
     <string name="settings_appearance_density">界面密度</string>
     <string name="settings_appearance_density_title">界面密度</string>
@@ -246,6 +245,11 @@
     <string name="settings_max_network_retries_desc">网络失败后的指数退避重试次数</string>
     <string name="settings_retries_count">%1$d 次</string>
     <string name="settings_retries_input_hint">填 0 表示不重试</string>
+    <string name="settings_general_subagent">子代理</string>
+    <string name="settings_subagent_max_running">并发上限</string>
+    <string name="settings_subagent_max_running_desc">同时运行的子代理数量上限</string>
+    <string name="settings_subagent_max_running_count">%1$d 个</string>
+    <string name="settings_subagent_max_running_input_hint">建议 1-32，默认 6</string>
     <string name="settings_general_input">输入</string>
     <string name="settings_enter_to_send">回车键发送消息</string>
     <string name="settings_enter_to_send_desc">关闭后回车换行，需点发送按钮发送</string>
@@ -685,6 +689,9 @@
     <string name="common_ai_providers">AI 供应商</string>
     <string name="common_save">保存</string>
     <string name="common_done">完成</string>
+    <string name="common_image_picker_pick">选择图片</string>
+    <string name="common_image_picker_uploading">正在保存图片…</string>
+    <string name="common_image_picker_save_failed">保存图片失败，请重试</string>
     <string name="common_copy">复制</string>
     <string name="common_copy_success">已复制到剪贴板</string>
     <string name="common_cut">剪切</string>
@@ -2785,7 +2792,7 @@ AI 将自主循环推进（工具自动放行、PLAN 停用），直到达成、
     <string name="roles_save_failed">保存失败，请重试</string>
     <string name="roles_field_basic">基本信息</string>
     <string name="roles_field_name">名称</string>
-    <string name="roles_field_name_placeholder">最多 4 个字</string>
+    <string name="roles_field_name_placeholder">最多 8 个字或 24 个英文字符</string>
     <string name="roles_field_description">简介</string>
     <string name="roles_field_description_placeholder">一句话简介，用于列表展示</string>
     <string name="roles_field_identity">身份 Prompt</string>
@@ -2795,12 +2802,12 @@ AI 将自主循环推进（工具自动放行、PLAN 停用），直到达成、
     <string name="roles_field_avatar">头像</string>
     <string name="roles_field_avatar_value">头像内容</string>
     <string name="roles_field_avatar_emoji_placeholder">输入一个 emoji，如 🧑‍💻</string>
-    <string name="roles_field_avatar_image_placeholder">输入图片 URL 或本地路径</string>
     <string name="roles_field_status">状态</string>
     <string name="roles_field_type">类型</string>
     <string name="roles_avatar_none">无</string>
     <string name="roles_avatar_emoji">Emoji</string>
     <string name="roles_avatar_image">图片</string>
+    <string name="roles_avatar_preview_name_placeholder">未填写名称</string>
     <string name="roles_no_description">未设置</string>
     <string name="roles_no_tags">未设置</string>
     <string name="roles_identity_empty">该角色未设置身份 Prompt</string>

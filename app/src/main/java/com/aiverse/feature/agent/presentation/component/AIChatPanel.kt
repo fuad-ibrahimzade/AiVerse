@@ -761,6 +761,9 @@ fun AIChatPanel(
     val unattachedErrors by viewModel.unattachedErrors.collectAsStateWithLifecycle()
     val messagesState by viewModel.messagesState.collectAsStateWithLifecycle()
     val messages = messagesState.messages
+    // Issue #122：当前会话中「⚡ 插入排队消息」的用户消息 id 集合。忙碌时跳过它们锚定当前轮，
+    // 避免插入消息落库成为新轮首后把 activeTurnKey 从 AI 正在跑的轮迁移走（视觉假象）。
+    val interjectedMessageIds by viewModel.interjectedMessageIds.collectAsStateWithLifecycle()
     // 消息导航浮窗的全量消息源：打开浮窗时一次性取全会话消息，不受聊天列表分页限制。
     val timelineMessages by viewModel.timelineMessages.collectAsStateWithLifecycle()
     val pendingScroll by viewModel.pendingScrollMessage.collectAsStateWithLifecycle()
@@ -978,7 +981,13 @@ fun AIChatPanel(
         }
     }
     SideEffect { turnKeyHistory.putAll(stableTurnKeys) }
-    val activeTurnKey = if (isBusy) messages.lastOrNull()?.let { stableTurnKeys[it.id] } else null
+    // Issue #122：忙碌时以「最后一条非 ⚡ 插入消息」作为当前展开轮的锚点。插入的排队消息落库后
+    // 会成为消息列表新轮首，若按 messages.lastOrNull() 取轮 key，会把 activeTurnKey 从 AI 正在跑的
+    // 轮迁移到插入消息的空新轮，导致原当前轮 running/expanded 变 false 被折叠、思考/工具过程被隐藏
+    // （纯视觉假象，AI 并未真断流）。跳过插入消息，当前轮保持展开。
+    val activeTurnKey = if (isBusy) {
+        messages.lastOrNull { it.id !in interjectedMessageIds }?.let { stableTurnKeys[it.id] }
+    } else null
     // 长会话里重建整张列表要遍历全部消息（拆轮、分组、拆块），在主线程上做会卡住每次落库与补载历史。
     // 超过阈值后改在后台算，算完前继续显示上一版（LazyColumn 与它的条数一直自洽）；
     // 切换会话后的首版仍同步算，避免短暂显示上一个会话的内容。
@@ -1354,6 +1363,9 @@ fun AIChatPanel(
     }
 
     val lastMsg = messages.lastOrNull()
+    // Issue #122：最后一条「非 ⚡ 插入」消息 id。插入的排队消息落库只作为普通气泡显示，不应视为
+    // 本轮输出边界，故 retained 快照的清理 key 也跳过它，避免插入消息触发 retained 清空造成次要闪断。
+    val lastNonInterjectedMsgId = messages.lastOrNull { it.id !in interjectedMessageIds }?.id
     // 本轮助手消息是否已经在消息列表中正式就位渲染：
     // 只有末尾消息是 ASSISTANT 且正文与思考前缀吻合，才代表本轮输出已落库进 messages 列表
     val isAssistantSettled = lastMsg?.role == MessageRole.ASSISTANT && run {
@@ -1398,7 +1410,7 @@ fun AIChatPanel(
     // 不重启；而助手消息落库又常与紧随其后的工具消息被合并派发，UI 观察不到「助手消息成为末尾」
     // 那一帧，isAssistantSettled 的前缀校验恒不成立——两条清除路径同时失效，旧思考/正文就会一直
     // 挂在尾巴上、新内容反而出现在它上方。改按末尾消息 id 判定，任何新消息落库都会触发清空。
-    LaunchedEffect(isBusy, lastMsg?.id) {
+    LaunchedEffect(isBusy, lastNonInterjectedMsgId) {
         retainedStreamingText = null
         retainedStreamingReasoning = null
     }

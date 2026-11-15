@@ -24,6 +24,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -489,7 +490,7 @@ private object CodeHighlightCache {
     }
 }
 
-/** 代码块自动折叠的行数阈值：超过该行数且开启折叠时，先显示前 N 行 + 「展开全部」。 */
+/** 代码块自动折叠的行数阈值：超过该行数且开启折叠时，先显示前 N 行 + 行尾「展开」按钮。 */
 private const val CODE_FOLD_THRESHOLD_LINES = 12
 
 @Composable
@@ -521,11 +522,13 @@ private fun SafeMarkdownHighlightedCode(
     // 与相邻块之间保留 scale(8) 呼吸感，块与块正常间距不受影响。
     val isFirstBlock = LocalIsFirstBlock.current
     val isLastBlock = LocalIsLastBlock.current
-    // 折叠：超过阈值行数且开启折叠时，先显示前 N 行，行尾「展开全部」按钮；行号列同步只显示可见行。
+    // 折叠：超过阈值行数且开启折叠时，先显示前 N 行；行号列同步只显示可见行。
+    // 切换按钮常驻，展开后同位置变「收起」；用 saveable 让滚动回收后展开态不丢，
+    // code 作为 key 使流式内容变化时回到折叠态重新计数。
     val t = LocalUIDensityTokens.current
     val lineCount = code.count { it == '\n' } + 1
     val canFold = autoFold && lineCount > CODE_FOLD_THRESHOLD_LINES
-    var expanded by remember(code) { mutableStateOf(false) }
+    var expanded by rememberSaveable(code) { mutableStateOf(false) }
     val folded = canFold && !expanded
     val maxLines = if (folded) CODE_FOLD_THRESHOLD_LINES else Int.MAX_VALUE
     val visibleLines = if (folded) min(lineCount, CODE_FOLD_THRESHOLD_LINES) else lineCount
@@ -579,14 +582,15 @@ private fun SafeMarkdownHighlightedCode(
                     )
                 }
             }
-            if (folded) {
+            if (canFold) {
+                val toggleLabel = stringResource(if (expanded) R.string.common_collapse_action else R.string.common_expand)
                 Text(
-                    text = stringResource(R.string.chat_code_expand),
+                    text = toggleLabel,
                     style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.primary),
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { expanded = true }
+                        .clickable(onClickLabel = toggleLabel) { expanded = !expanded }
                         .padding(vertical = t.scale(4)),
                 )
             }

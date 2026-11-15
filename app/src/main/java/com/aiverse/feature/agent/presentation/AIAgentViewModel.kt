@@ -243,6 +243,17 @@ class AIAgentViewModel @Inject constructor(
     private val _currentSessionId = MutableStateFlow<String?>(null)
     val currentSessionId: StateFlow<String?> = _currentSessionId.asStateFlow()
 
+    /**
+     * 当前会话中属于「⚡ 插入排队消息」（Issue #122）的用户消息 id 集合。
+     *
+     * 内存态、不落盘：仅供 AIChatPanel 在忙碌时跳过这些插入消息来锚定「当前展开轮」，
+     * 避免插入消息落库后成为消息列表新轮首、把 activeTurnKey 从 AI 正在跑的轮迁移走，
+     * 造成「AI 当前轮被折叠、思考/工具过程消失」的纯视觉假象。
+     * 随会话切换清空（见 init 中 [_currentSessionId] 的收集）。
+     */
+    private val _interjectedMessageIds = MutableStateFlow<Set<String>>(emptySet())
+    val interjectedMessageIds: StateFlow<Set<String>> = _interjectedMessageIds.asStateFlow()
+
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     val currentSessionTodoItems: StateFlow<List<TodoItem>> = _currentSessionId
         .flatMapLatest { id ->
@@ -1888,6 +1899,11 @@ class AIAgentViewModel @Inject constructor(
             sessionUseCase.initColdStartCleanup()
         }
 
+        // Issue #122：会话切换 / 新建会话 / 会话结束时清空插入消息标记，避免跨会话串扰。
+        viewModelScope.launch {
+            _currentSessionId.collect { _interjectedMessageIds.value = emptySet() }
+        }
+
         // 启动与工作区切换时重新扫描技能（项目级技能随工作区变化），刷新 `/` 命令菜单。
         viewModelScope.launch {
             _currentWorkspace.collect { slashCommandRegistry.refresh() }
@@ -2453,15 +2469,32 @@ class AIAgentViewModel @Inject constructor(
     }
 
     /**
-     * 把当前会话队列中某条消息立即插入正在运行的轮次：从队列移除，转成用户插话通知交给
-     * [deliverSystemEvent]——忙碌时搭车注入本批工具结果，AI 当前轮即可感知；空闲时作为
-     * 新一轮用户消息发送。
+     * 把当前会话队列中某条消息立即插入正在运行的轮次：先把它作为用户消息落库（对话历史
+     * Issue #122），再从队列移除、转成用户插话通知交给 [deliverSystemEvent]——忙碌时搭车注入
+     * 本批工具结果，AI 当前轮即可感知；空闲时由 [flushPendingNotifications] 触发新一轮。
+     *
+     * 落库内容取 modelRequest（与发给模型的指令一致）；附件元数据一并落库，用户气泡里可回看。
+     * 落库后通知仍会随工具结果 ack 移除，但那条用户消息已是持久化的对话历史，不受 ack 影响。
      */
     fun interjectQueuedRequest(id: String) {
         val sid = _currentSessionId.value ?: return
         val queue = _queuedRequests.value[sid] ?: return
         val req = queue.firstOrNull { it.id == id } ?: return
         _queuedRequests.value = _queuedRequests.value + (sid to queue.filterNot { it.id == id })
+        viewModelScope.launch {
+            val userMsgId = UUID.randomUUID().toString()
+            // Issue #122：登记为 ⚡ 插入消息，供 UI 忙碌时跳过它锚定当前轮（见 AIChatPanel.activeTurnKey）。
+            _interjectedMessageIds.value = _interjectedMessageIds.value + userMsgId
+            messagePersistenceUseCase.persist(
+                sid,
+                MessageRole.USER,
+                req.modelRequest,
+                id = userMsgId,
+                attachments = req.inputAttachments
+            )
+            messagePersistenceUseCase.invalidateHistory(sid)
+            sessionUseCase.touch(sid, messagePersistenceUseCase.nextTimestamp())
+        }
         deliverSystemEvent(
             sid,
             PendingNotification(

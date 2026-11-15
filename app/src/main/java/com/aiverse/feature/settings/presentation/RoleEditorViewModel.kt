@@ -1,12 +1,16 @@
 package com.aiverse.feature.settings.presentation
 
+import android.net.Uri
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aiverse.core.util.savePickedImageToAppFiles
 import com.aiverse.feature.agent.data.local.dao.RoleDao
 import com.aiverse.feature.agent.data.local.entity.RoleEntity
 import com.aiverse.feature.agent.domain.model.AvatarKind
 import com.aiverse.feature.agent.domain.model.Role
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -31,7 +35,8 @@ sealed interface RoleSaveState {
  */
 @HiltViewModel
 class RoleEditorViewModel @Inject constructor(
-    private val roleDao: RoleDao
+    private val roleDao: RoleDao,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _saveState = MutableStateFlow<RoleSaveState>(RoleSaveState.Idle)
@@ -84,6 +89,18 @@ class RoleEditorViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 把相册所选图片保存为角色头像：解码（采样控内存）→ 降采样 → 重编码 JPEG →
+     * 写 filesDir/[AVATAR_DIR]/avatar_<ts>.jpg。
+     *
+     * 返回写入文件的绝对路径（供存入 [Role.avatarValue]）；失败返回 null。
+     */
+    fun saveAvatarImage(uri: Uri, onResult: (String?) -> Unit) {
+        viewModelScope.launch {
+            onResult(savePickedImageToAppFiles(context, uri, AVATAR_DIR, "avatar"))
+        }
+    }
+
     /** 新建角色的排序权重：排在现有角色之后。 */
     private suspend fun nextSortOrder(): Int =
         (roleDao.getAllOnce().maxOfOrNull { it.sortOrder } ?: -1) + 1
@@ -98,5 +115,8 @@ class RoleEditorViewModel @Inject constructor(
 
         /** 生成一条新建角色的 id。 */
         fun newRoleId(): String = ID_PREFIX + UUID.randomUUID().toString().replace("-", "")
+
+        /** 头像图片落盘子目录（位于 filesDir 下）。 */
+        private const val AVATAR_DIR = "role_avatars"
     }
 }
