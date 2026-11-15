@@ -16,6 +16,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.DragInteraction
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -219,7 +220,11 @@ internal fun ToolMessageBody(
                 .fillMaxWidth()
                 .heightIn(min = t.chipHeight)
                 .then(
-                    if (expandable) Modifier.clickable {
+                    if (expandable) Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        // 折叠反馈只留箭头翻转：整行宽度的按压高亮没有信息量，去了之后新增行也不用再补圆角。
+                        indication = null
+                    ) {
                         onExpandedChange?.invoke(!effectiveExpanded)
                         onToggle?.invoke()
                     } else Modifier
@@ -678,6 +683,9 @@ internal fun ToolCallGroupHeader(
             .heightIn(min = t.chipHeight)
             .clip(RoundedCornerShape(t.chipCorner))
             .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                // 去掉按压指示器：整行圆角高亮很扎眼，折叠反馈只靠箭头翻转。
+                indication = null,
                 // 无障碍：点这一行会展开还是收起，读屏能念出来（展开状态本身由 count 文本表达）
                 onClickLabel = stringResource(
                     if (expanded) R.string.common_collapse_action else R.string.common_expand
@@ -879,7 +887,11 @@ internal fun DiffExpandToggle(expanded: Boolean, hiddenCount: Int, onToggle: () 
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radius.sm))
-            .clickable(onClick = onToggle)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                // 与其它折叠行一致：按压指示器关掉，只留箭头翻转 + 文案切换做反馈。
+                indication = null
+            ) { onToggle() }
             .padding(vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center

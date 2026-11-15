@@ -8,6 +8,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -450,8 +451,11 @@ internal fun AgentMessageItem(
                                     ) {
                                         // 块级元素（表格/代码块）配色跟随气泡底色深浅，避免深底气泡里白字压主题浅灰块底看不清。
                                         val (blockBackground, blockTextColor) = chatBlockColors(ChatBubbleRole.ASSISTANT)
+                                        // 正文尾部空白（末尾空行/尾随空格）会被 Markdown 当成一个独立空段落（或只含 <br> 的段落），
+                                        // 渲染出约一整行的高度，比气泡顶部内边距多出空白。这里在渲染前只剥离尾部空白字符，
+                                        // 不动正文内部段落结构，也不改 MarkdownContent 组件自身的行为。
                                         MarkdownContent(
-                                            text = contentSlice ?: message.content,
+                                            text = (contentSlice ?: message.content).trimEnd(),
                                             color = chatBubbleTextColor(ChatBubbleRole.ASSISTANT),
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -644,6 +648,9 @@ internal fun TurnCollapseHeader(
             .heightIn(min = t.chipHeight)
             .clip(RoundedCornerShape(t.chipCorner))
             .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                // 去掉按压指示器：整行圆角高亮很扎眼，折叠反馈只靠箭头翻转。
+                indication = null,
                 onClickLabel = stringResource(
                     if (expanded) R.string.common_collapse_action else R.string.common_expand
                 ),
@@ -765,7 +772,11 @@ private fun CompactionSummaryCard(message: AgentUIMessage, markdownCache: Markdo
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(t.chipCorner))
                 .background(chatMutedSurfaceColor())
-                .clickable { expanded = !expanded }
+                // 去掉按压指示器：整行圆角高亮很扎眼，折叠反馈只靠箭头翻转。
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { expanded = !expanded }
                 .padding(horizontal = t.sm, vertical = t.sm)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -819,7 +830,11 @@ private fun CompactionFailureCard(message: AgentUIMessage) {
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(t.chipCorner))
                 .background(chatMutedSurfaceColor())
-                .clickable { expanded = !expanded }
+                // 去掉按压指示器：整行圆角高亮很扎眼，折叠反馈只靠箭头翻转。
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { expanded = !expanded }
                 .padding(horizontal = t.sm, vertical = t.sm)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {

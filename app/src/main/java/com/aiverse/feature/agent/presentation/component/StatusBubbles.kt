@@ -16,6 +16,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -747,7 +748,11 @@ internal fun ReasoningBubble(
                 .fillMaxWidth()
                 .heightIn(min = t.chipHeight)
                 .clip(RoundedCornerShape(t.chipCorner))
-                .clickable { toggleExpanded(!expanded) },
+                // 去掉按压指示器：整行圆角高亮很扎眼，折叠反馈只靠箭头翻转。
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { toggleExpanded(!expanded) },
             verticalAlignment = Alignment.CenterVertically
         ) {
             ThinkingGlyph(tint = Brand.IconGray, iconSize = t.scale(16))
