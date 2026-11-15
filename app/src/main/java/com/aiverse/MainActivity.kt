@@ -332,6 +332,7 @@ class MainActivity : ComponentActivity() {
             val userBubbleOpacity by appearanceSettings.userBubbleOpacityFlow.collectAsStateWithLifecycle(initialValue = AppearanceSettingsRepository.DEFAULT_BUBBLE_OPACITY)
             val assistantBubbleOpacity by appearanceSettings.assistantBubbleOpacityFlow.collectAsStateWithLifecycle(initialValue = AppearanceSettingsRepository.DEFAULT_BUBBLE_OPACITY)
             val uiFontScale by appearanceSettings.uiFontScaleFlow.collectAsStateWithLifecycle(initialValue = AppearanceSettingsRepository.DEFAULT_UI_FONT_SCALE)
+            val uiFontPath by appearanceSettings.uiFontPathFlow.collectAsStateWithLifecycle(initialValue = "")
             val uiDensity by appearanceSettings.uiDensityFlow.collectAsStateWithLifecycle(initialValue = UIDensity.STANDARD)
             val cardCorner by appearanceSettings.cardCornerFlow.collectAsStateWithLifecycle(initialValue = AppearanceSettingsRepository.DEFAULT_CARD_CORNER)
             val buttonCorner by appearanceSettings.buttonCornerFlow.collectAsStateWithLifecycle(initialValue = AppearanceSettingsRepository.DEFAULT_BUTTON_CORNER)
@@ -372,6 +373,7 @@ class MainActivity : ComponentActivity() {
                 userBubbleOpacity = userBubbleOpacity,
                 assistantBubbleOpacity = assistantBubbleOpacity,
                 uiFontScale = uiFontScale,
+                uiFontPath = uiFontPath,
                 uiDensity = uiDensity,
                 cardCornerDp = cardCorner,
                 buttonCornerDp = buttonCorner,

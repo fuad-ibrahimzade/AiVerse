@@ -781,6 +781,10 @@ class SettingsViewModel @Inject constructor(
     private val _uiDensity = MutableStateFlow(UIDensity.STANDARD)
     val uiDensity: StateFlow<UIDensity> = _uiDensity.asStateFlow()
 
+    /** 界面字体路径（空串=系统默认），全局生效。 */
+    private val _uiFontPath = MutableStateFlow("")
+    val uiFontPath: StateFlow<String> = _uiFontPath.asStateFlow()
+
     /** 卡片圆角（dp），默认 12。 */
     private val _cardCorner = MutableStateFlow(AppearanceSettingsRepository.DEFAULT_CARD_CORNER)
     val cardCorner: StateFlow<Int> = _cardCorner.asStateFlow()
@@ -1349,6 +1353,12 @@ class SettingsViewModel @Inject constructor(
             launch {
                 appearanceSettingsRepository.uiDensityFlow.collectLatest {
                     _uiDensity.value = it
+                }
+            }
+
+            launch {
+                appearanceSettingsRepository.uiFontPathFlow.collectLatest {
+                    _uiFontPath.value = it
                 }
             }
 
@@ -2784,6 +2794,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /** 设置界面字体路径（空串=系统默认），全局生效。 */
+    fun setUiFontPath(path: String) {
+        viewModelScope.launch {
+            appearanceSettingsRepository.setUiFontPath(path)
+        }
+    }
+
     /** 设置卡片圆角（dp）。 */
     fun setCardCorner(corner: Int) {
         viewModelScope.launch {
@@ -2895,10 +2912,11 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    /** 恢复外观为默认值（清空三档字号、密度档、代码显示、气泡透明度与文件树显示偏好，回到仓库默认）。 */
+    /** 恢复外观为默认值（清空三档字号、密度档、界面字体、代码显示、气泡透明度与文件树显示偏好，回到仓库默认）。 */
     fun restoreAppearanceDefaults() {
         viewModelScope.launch {
             appearanceSettingsRepository.restoreFontSizes(null, null, null, null)
+            appearanceSettingsRepository.restoreUiFontPath(null)
             appearanceSettingsRepository.restoreCodeDisplay(null, null, null, null, null, null)
             appearanceSettingsRepository.restoreFileTreeDisplay()
         }

@@ -13,6 +13,7 @@ import com.aiverse.core.theme.FileTreeDisplayPrefs
 import com.aiverse.core.theme.FileTreeIndentDensity
 import com.aiverse.core.theme.UIDensity
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -118,6 +119,15 @@ class AppearanceSettingsRepository @Inject constructor(
         (prefs[ASSISTANT_BUBBLE_OPACITY_KEY] ?: DEFAULT_BUBBLE_OPACITY).coerceIn(MIN_BUBBLE_OPACITY, MAX_BUBBLE_OPACITY)
     }
 
+    /**
+     * 界面字体路径（App 私有目录文件绝对路径；空串=系统默认）。
+     * 读取时校验文件仍存在，导入字体被删后自动回落系统默认。
+     */
+    val uiFontPathFlow: Flow<String> = context.appearanceDataStore.data.map { prefs ->
+        val saved = prefs[UI_FONT_PATH_KEY] ?: ""
+        if (saved.isBlank() || File(saved).isFile) saved else ""
+    }
+
     suspend fun setChatFontSizeSp(sizeSp: Int) {
         context.appearanceDataStore.edit { it[CHAT_FONT_SIZE_KEY] = sizeSp.coerceIn(MIN_CHAT_FONT_SIZE_SP, MAX_CHAT_FONT_SIZE_SP) }
     }
@@ -210,6 +220,11 @@ class AppearanceSettingsRepository @Inject constructor(
         context.appearanceDataStore.edit { it[ASSISTANT_BUBBLE_OPACITY_KEY] = opacity.coerceIn(MIN_BUBBLE_OPACITY, MAX_BUBBLE_OPACITY) }
     }
 
+    /** 设置界面字体路径；空串=系统默认。 */
+    suspend fun setUiFontPath(path: String) {
+        context.appearanceDataStore.edit { it[UI_FONT_PATH_KEY] = path }
+    }
+
     /** 备份快照：当前聊天字号（sp）。 */
     suspend fun chatFontSizeSnapshot(): Int = chatFontSizeSpFlow.first()
 
@@ -239,6 +254,9 @@ class AppearanceSettingsRepository @Inject constructor(
 
     /** 备份快照：当前 AI 气泡透明度（%）。 */
     suspend fun assistantBubbleOpacitySnapshot(): Int = assistantBubbleOpacityFlow.first()
+
+    /** 备份快照：当前界面字体路径（空串=系统默认）。 */
+    suspend fun uiFontPathSnapshot(): String = uiFontPathFlow.first()
 
     /** 从备份还原三档字号与密度档；任一传 null 时清除该键回退默认。 */
     suspend fun restoreFontSizes(chatSp: Int?, inputSp: Int?, uiScale: Float?, uiDensity: String? = null) {
@@ -282,6 +300,13 @@ class AppearanceSettingsRepository @Inject constructor(
         }
     }
 
+    /** 从备份还原界面字体路径；null 或空串时清除该键回退系统默认。 */
+    suspend fun restoreUiFontPath(path: String?) {
+        context.appearanceDataStore.edit {
+            if (path.isNullOrBlank()) it.remove(UI_FONT_PATH_KEY) else it[UI_FONT_PATH_KEY] = path
+        }
+    }
+
     companion object {
         private val CHAT_FONT_SIZE_KEY = intPreferencesKey("chat_font_size_sp")
         private val INPUT_FONT_SIZE_KEY = intPreferencesKey("input_font_size_sp")
@@ -302,6 +327,7 @@ class AppearanceSettingsRepository @Inject constructor(
         private val FIELD_CORNER_KEY = intPreferencesKey("field_corner")
         private val BUBBLE_CORNER_KEY = intPreferencesKey("bubble_corner")
         private val IMAGE_CORNER_KEY = intPreferencesKey("image_corner")
+        private val UI_FONT_PATH_KEY = stringPreferencesKey("ui_font_path")
 
         const val MIN_CHAT_FONT_SIZE_SP = 12
         const val MAX_CHAT_FONT_SIZE_SP = 22

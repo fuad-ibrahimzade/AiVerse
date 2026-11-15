@@ -30,6 +30,7 @@ class ThemePackageManager @Inject constructor(
         chatFontSizeSp = appearanceSettingsRepository.chatFontSizeSpFlow.first(),
         inputFontSizeSp = appearanceSettingsRepository.inputFontSizeSpFlow.first(),
         uiFontScale = appearanceSettingsRepository.uiFontScaleFlow.first(),
+        uiFontPath = appearanceSettingsRepository.uiFontPathFlow.first(),
         uiDensityId = appearanceSettingsRepository.uiDensityFlow.first().id,
         codeFontSizeSp = appearanceSettingsRepository.codeFontSizeSpFlow.first(),
         codeWrapEnabled = appearanceSettingsRepository.codeWrapEnabledFlow.first(),
@@ -52,6 +53,7 @@ class ThemePackageManager @Inject constructor(
         appearanceSettingsRepository.setChatFontSizeSp(pkg.chatFontSizeSp)
         appearanceSettingsRepository.setInputFontSizeSp(pkg.inputFontSizeSp)
         appearanceSettingsRepository.setUiFontScale(pkg.uiFontScale)
+        appearanceSettingsRepository.setUiFontPath(pkg.uiFontPath)
         appearanceSettingsRepository.setUiDensity(pkg.uiDensity)
         appearanceSettingsRepository.setCodeFontSizeSp(pkg.codeFontSizeSp)
         appearanceSettingsRepository.setCodeWrapEnabled(pkg.codeWrapEnabled)

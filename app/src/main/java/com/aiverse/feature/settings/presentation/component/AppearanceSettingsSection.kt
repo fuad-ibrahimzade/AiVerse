@@ -35,6 +35,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
 import com.aiverse.R
 import com.aiverse.core.theme.AppThemePreset
 import com.aiverse.core.theme.ChatBubbleStyle
@@ -73,10 +74,12 @@ import compose.icons.feathericons.RotateCcw
 import compose.icons.feathericons.Share
 import compose.icons.feathericons.Sliders
 import compose.icons.feathericons.Trash
+import compose.icons.feathericons.Type
 import compose.icons.feathericons.Zap
 import compose.icons.feathericons.Plus
 import compose.icons.feathericons.Star
 import kotlin.math.roundToInt
+import java.io.File
 
 /** 背景模式 -> 标签文案资源（设置项尾部与弹窗共用）。 */
 internal fun BackgroundMode.labelRes(): Int = when (this) {
@@ -103,6 +106,7 @@ internal fun AppearanceSettingsSection(
     inputFontSizeSp: Int,
     uiFontScale: Float,
     uiDensity: UIDensity,
+    uiFontPath: String,
     fileTreePrefs: FileTreeDisplayPrefs,
     onSetFileNameDisplay: (FileNameDisplay) -> Unit,
     onSetShowHiddenFiles: (Boolean) -> Unit,
@@ -118,6 +122,7 @@ internal fun AppearanceSettingsSection(
     onSetUiDensity: (UIDensity) -> Unit,
     onOpenDensity: () -> Unit,
     onOpenCorner: () -> Unit,
+    onOpenUiFont: () -> Unit,
     onRestoreDefaults: () -> Unit,
     onExportRequest: () -> Unit,
     onImportThemePackage: (String) -> Unit,
@@ -315,6 +320,25 @@ internal fun AppearanceSettingsSection(
                 icon = FeatherIcons.Box,
                 title = stringResource(R.string.settings_appearance_corner),
                 onClick = onOpenCorner
+            )
+            SettingsDivider()
+            SettingsRow(
+                icon = FeatherIcons.Type,
+                title = stringResource(R.string.settings_appearance_ui_font),
+                onClick = onOpenUiFont,
+                trailing = {
+                    Text(
+                        text = if (uiFontPath.isBlank()) {
+                            stringResource(R.string.settings_appearance_ui_font_default)
+                        } else {
+                            File(uiFontPath).nameWithoutExtension
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.semanticColors.subtleText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             )
         }
 

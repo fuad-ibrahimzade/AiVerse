@@ -99,6 +99,8 @@ data class BackupMetadata(
     val uiFontScale: Float? = null,
     /** 备份快照：界面密度档 id；null 表示旧备份无此字段或未备份应用设置，导入时清除该键回退默认。 */
     val uiDensity: String? = null,
+    /** 备份快照：界面字体路径；null 表示旧备份无此字段或未备份应用设置，导入时清除该键回退系统默认。 */
+    val uiFontPath: String? = null,
     val codeFontSizeSp: Int = 13,
     val codeWrapEnabled: Boolean = false,
     val codeAutoFoldEnabled: Boolean = true,

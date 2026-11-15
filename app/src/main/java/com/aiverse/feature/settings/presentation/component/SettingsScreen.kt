@@ -209,6 +209,7 @@ internal enum class SettingsSection(@param:StringRes val titleRes: Int) {
     Appearance(R.string.settings_appearance),
     AppearanceDensity(R.string.settings_appearance_density_title),
     AppearanceCorner(R.string.settings_appearance_corner_title),
+    AppearanceFont(R.string.settings_appearance_ui_font_title),
     Plugins(R.string.settings_plugins),
     Tts(R.string.settings_tts),
     PluginRepo(R.string.plugins_repo_title),
@@ -244,7 +245,8 @@ private fun SettingsSection.depth(): Int = when (this) {
     SettingsSection.PluginRepo,
     SettingsSection.SearchProvider,
     SettingsSection.AppearanceDensity,
-    SettingsSection.AppearanceCorner -> 2
+    SettingsSection.AppearanceCorner,
+    SettingsSection.AppearanceFont -> 2
     SettingsSection.SearchProviderDetail -> 3
     SettingsSection.PhoneControl -> 2
     SettingsSection.PhoneControlAccessibilityGrant,
@@ -332,6 +334,7 @@ fun SettingsScreen(
     val inputFontSizeSp by viewModel.inputFontSizeSp.collectAsStateWithLifecycle()
     val uiFontScale by viewModel.uiFontScale.collectAsStateWithLifecycle()
     val uiDensity by viewModel.uiDensity.collectAsStateWithLifecycle()
+    val uiFontPath by viewModel.uiFontPath.collectAsStateWithLifecycle()
     val cardCorner by viewModel.cardCorner.collectAsStateWithLifecycle()
     val buttonCorner by viewModel.buttonCorner.collectAsStateWithLifecycle()
     val fieldCorner by viewModel.fieldCorner.collectAsStateWithLifecycle()
@@ -611,6 +614,7 @@ fun SettingsScreen(
         SettingsSection.PhoneControl -> if (expanded) null else SettingsSection.Menu
         SettingsSection.AppearanceDensity -> SettingsSection.Appearance
         SettingsSection.AppearanceCorner -> SettingsSection.Appearance
+        SettingsSection.AppearanceFont -> SettingsSection.Appearance
         SettingsSection.PhoneControlAccessibilityGrant -> phoneControlGrantReturn
         SettingsSection.PhoneControlUnlock -> SettingsSection.PhoneControl
         SettingsSection.PhoneControlAppRules -> SettingsSection.PhoneControl
@@ -1262,6 +1266,7 @@ fun SettingsScreen(
                     inputFontSizeSp = inputFontSizeSp,
                     uiFontScale = uiFontScale,
                     uiDensity = uiDensity,
+                    uiFontPath = uiFontPath,
                     fileTreePrefs = fileTreeDisplayPrefs,
                     codeFontSizeSp = codeFontSizeSp,
                     codeWrapEnabled = codeWrapEnabled,
@@ -1283,6 +1288,7 @@ fun SettingsScreen(
                     onSetUiDensity = { viewModel.setUiDensity(it) },
                     onOpenDensity = { section = SettingsSection.AppearanceDensity },
                     onOpenCorner = { section = SettingsSection.AppearanceCorner },
+                    onOpenUiFont = { section = SettingsSection.AppearanceFont },
                     onSetCodeFontSizeSp = { viewModel.setCodeFontSizeSp(it) },
                     onSetCodeWrapEnabled = { viewModel.setCodeWrapEnabled(it) },
                     onSetCodeAutoFoldEnabled = { viewModel.setCodeAutoFoldEnabled(it) },
@@ -1320,6 +1326,10 @@ fun SettingsScreen(
                     onSetFieldCorner = { viewModel.setFieldCorner(it) },
                     onSetBubbleCorner = { viewModel.setBubbleCorner(it) },
                     onSetImageCorner = { viewModel.setImageCorner(it) }
+                )
+                SettingsSection.AppearanceFont -> UiFontSettingsSection(
+                    currentPath = uiFontPath,
+                    onSetUiFont = { viewModel.setUiFontPath(it) }
                 )
                 SettingsSection.Providers -> ProvidersSection(
                     providers = providers,

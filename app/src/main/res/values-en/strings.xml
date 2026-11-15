@@ -122,6 +122,12 @@
     <string name="density_comfortable">Comfortable</string>
     <string name="settings_appearance_corner">Corner Radius</string>
     <string name="settings_appearance_corner_title">Corner Radius</string>
+    <string name="settings_appearance_ui_font">Interface Font</string>
+    <string name="settings_appearance_ui_font_title">Interface Font</string>
+    <string name="settings_appearance_ui_font_default">System Default</string>
+    <string name="settings_appearance_ui_font_import">Import Font</string>
+    <string name="settings_appearance_ui_font_delete">Delete Font</string>
+    <string name="settings_appearance_ui_font_import_failed">Import failed, choose a ttf/otf/ttc font file</string>
     <string name="corner_card">Card Corner</string>
     <string name="corner_button">Button Corner</string>
     <string name="corner_input">Input Corner</string>

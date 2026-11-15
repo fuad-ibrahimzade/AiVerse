@@ -19,11 +19,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.io.File
 
 object Spacing {
     val xs = 4.dp
@@ -411,6 +414,28 @@ private fun TextStyle.scaledBy(factor: Float): TextStyle {
     )
 }
 
+/**
+ * 把整套 Material Typography 的字族整体替换为 [family]（界面字体全局生效）。
+ * 代码块/终端等显式指定 MONOSPACE 的组件自带字体，不受这里影响。
+ */
+private fun Typography.withFontFamily(family: FontFamily): Typography = copy(
+    displayLarge = displayLarge.copy(fontFamily = family),
+    displayMedium = displayMedium.copy(fontFamily = family),
+    displaySmall = displaySmall.copy(fontFamily = family),
+    headlineLarge = headlineLarge.copy(fontFamily = family),
+    headlineMedium = headlineMedium.copy(fontFamily = family),
+    headlineSmall = headlineSmall.copy(fontFamily = family),
+    titleLarge = titleLarge.copy(fontFamily = family),
+    titleMedium = titleMedium.copy(fontFamily = family),
+    titleSmall = titleSmall.copy(fontFamily = family),
+    bodyLarge = bodyLarge.copy(fontFamily = family),
+    bodyMedium = bodyMedium.copy(fontFamily = family),
+    bodySmall = bodySmall.copy(fontFamily = family),
+    labelLarge = labelLarge.copy(fontFamily = family),
+    labelMedium = labelMedium.copy(fontFamily = family),
+    labelSmall = labelSmall.copy(fontFamily = family)
+)
+
 /** 把子树内的 Material 字体整体缩放一档，颜色与形状保持当前主题不变。 */
 @Composable
 fun CompactTypography(
@@ -448,6 +473,7 @@ fun AIEditorTheme(
     userBubbleOpacity: Int = 100,
     assistantBubbleOpacity: Int = 100,
     uiFontScale: Float = 1f,
+    uiFontPath: String = "",
     uiDensity: UIDensity = UIDensity.STANDARD,
     cardCornerDp: Int = 12,
     buttonCornerDp: Int = 10,
@@ -471,7 +497,13 @@ fun AIEditorTheme(
 
     val isHyperOS = preset.id == "hyperos"
     val isGlass = preset.id == "hyperos_glass"
-    val typography = if (isHyperOS) HyperOSAppTypography else AppTypography
+    val baseTypography = if (isHyperOS) HyperOSAppTypography else AppTypography
+    // 界面字体：空串=系统默认；导入字体文件失效时回落系统默认，避免整个 UI 崩掉。
+    val appFontFamily = remember(uiFontPath) {
+        if (uiFontPath.isBlank()) FontFamily.Default
+        else runCatching { FontFamily(Font(File(uiFontPath))) }.getOrDefault(FontFamily.Default)
+    }
+    val typography = baseTypography.withFontFamily(appFontFamily)
     val shapes = if (isHyperOS) HyperOSAppShapes else Shapes()
 
     CompositionLocalProvider(

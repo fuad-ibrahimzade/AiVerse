@@ -413,6 +413,7 @@ class BackupManagerImpl @Inject constructor(
         inputFontSizeSp = if (options.appSettings) appearanceSettingsRepository.inputFontSizeSnapshot() else null,
         uiFontScale = if (options.appSettings) appearanceSettingsRepository.uiFontScaleSnapshot() else null,
         uiDensity = if (options.appSettings) appearanceSettingsRepository.uiDensitySnapshot() else null,
+        uiFontPath = if (options.appSettings) appearanceSettingsRepository.uiFontPathSnapshot() else null,
         codeFontSizeSp = if (options.appSettings) appearanceSettingsRepository.codeFontSizeSnapshot() else 13,
         codeWrapEnabled = if (options.appSettings) appearanceSettingsRepository.codeWrapSnapshot() else false,
         codeAutoFoldEnabled = if (options.appSettings) appearanceSettingsRepository.codeAutoFoldSnapshot() else true,
@@ -870,6 +871,7 @@ class BackupManagerImpl @Inject constructor(
                 meta.uiFontScale,
                 meta.uiDensity
             )
+            appearanceSettingsRepository.restoreUiFontPath(meta.uiFontPath)
             keepaliveSettingsRepository.restore(meta.keepaliveEnabled)
             liveNotificationSettingsRepository.restore(meta.liveNotificationEnabled)
             approvalNotificationSettingsRepository.restore(meta.approvalNotificationEnabled)
