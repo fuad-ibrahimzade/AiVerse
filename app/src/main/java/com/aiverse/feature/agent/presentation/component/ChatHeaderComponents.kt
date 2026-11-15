@@ -1,7 +1,6 @@
 package com.aiverse.feature.agent.presentation.component
 
 import android.app.ActivityManager
-import android.content.Context
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
@@ -22,8 +21,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.Image
@@ -58,7 +55,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Popup
@@ -68,6 +64,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -83,6 +80,7 @@ import com.aiverse.core.theme.LocalHyperOSStyle
 import com.aiverse.core.theme.LocalSurfaceGlassStyle
 import com.aiverse.core.theme.LocalUIDensityTokens
 import com.aiverse.core.theme.glassOr
+import java.util.Calendar
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
@@ -805,7 +803,6 @@ internal fun RemoteConnectingPlaceholder(
  * @param onNavigateToHistory OPEN_HISTORY 入口点击回调。
  * @param onFillPrompt FILL_PROMPT 入口点击回调，入参为填充提示词（是否填入由调用方决策）。
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun WelcomeState(
     bottomReserve: Dp,
@@ -818,6 +815,28 @@ internal fun WelcomeState(
     onFillPrompt: (String) -> Unit = {}
 ) {
     val enabledEntries = remember(welcomeEntries) { welcomeEntries.filter { it.enabled } }
+    // 按当前时间显示的问候 + 熬夜提醒；每分钟刷新，跨时段自动切换。
+    var now by remember { mutableStateOf(Calendar.getInstance()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000L)
+            now = Calendar.getInstance()
+        }
+    }
+    val currentHour = now.get(Calendar.HOUR_OF_DAY)
+    val lateNight = currentHour in 0..4
+    val greetingText = stringResource(
+        when (currentHour) {
+            in 5..10 -> R.string.chat_greeting_morning
+            in 11..12 -> R.string.chat_greeting_noon
+            in 13..17 -> R.string.chat_greeting_afternoon
+            in 18..23 -> R.string.chat_greeting_evening
+            else -> R.string.chat_greeting_late_night
+        }
+    )
+    // 顶部图标：浅色用彩色图案（app_launcher_glyph，透明背景），暗色用白色图案（app_launcher_glyph_white），
+    // 均为 APP 内 webp 位图，不走 PackageManager.loadIcon——后者会被系统壁纸/图标主题替换或变形。
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     BoxWithConstraints(
         modifier = modifier.padding(Spacing.xl),
         contentAlignment = Alignment.Center
@@ -833,49 +852,74 @@ internal fun WelcomeState(
             verticalArrangement = Arrangement.spacedBy(Spacing.sm),
             modifier = Modifier.offset(y = animatedOffset)
         ) {
-            Image(
-                painter = painterResource(R.drawable.ic_launcher_monochrome),
-                contentDescription = null,
-                modifier = Modifier.size(60.dp)
-            )
+            if (!isDark) {
+                // 浅色：APP 内 webp 位图（固定资源，不受系统主题影响）。
+                Image(
+                    painter = painterResource(R.drawable.app_launcher_glyph),
+                    contentDescription = null,
+                    modifier = Modifier.size(60.dp)
+                )
+            } else {
+                // 暗色：白色图案（透明背景），深色背景上清晰可见。
+                Image(
+                    painter = painterResource(R.drawable.app_launcher_glyph_white),
+                    contentDescription = null,
+                    modifier = Modifier.size(60.dp)
+                )
+            }
             Text(
                 text = stringResource(R.string.chat_placeholder),
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                text = stringResource(R.string.chat_input_hint),
+                text = if (lateNight) {
+                    stringResource(R.string.chat_greeting_with_reminder, greetingText)
+                } else {
+                    greetingText
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             // 仅渲染已启用入口；全部禁用则只保留提示语。
             if (enabledEntries.isNotEmpty()) {
                 Spacer(Modifier.height(Spacing.md))
-                FlowRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 480.dp),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    maxItemsInEachRow = 2
-                ) {
-                    enabledEntries.forEach { entry ->
-                        WelcomeEntryCard(
-                            entry = entry,
-                            enabled = entry.enabled,
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                when (entry.action) {
-                                    WelcomeEntryAction.OPEN_TERMINAL -> onNavigateToTerminal()
-                                    WelcomeEntryAction.OPEN_GIT -> onNavigateToGit()
-                                    WelcomeEntryAction.OPEN_BROWSER -> onNavigateToBrowser()
-                                    WelcomeEntryAction.OPEN_HISTORY -> onNavigateToHistory()
-                                    WelcomeEntryAction.FILL_PROMPT -> onFillPrompt(entry.promptText)
+            // 两列等宽对齐：FlowRow 的 scope 没有 weight，weight 不生效导致卡片宽度不一、两行没对齐。
+            // 改用手动两列（chunked(2) 每行一个 Row，卡片各 weight(1f) 等宽），奇数个时右侧补 Spacer(weight) 占位保持对齐。
+            Column(
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 480.dp)
+            ) {
+                enabledEntries.chunked(2).forEach { rowEntries ->
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        rowEntries.forEach { entry ->
+                            WelcomeEntryCard(
+                                entry = entry,
+                                enabled = entry.enabled,
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    when (entry.action) {
+                                        WelcomeEntryAction.OPEN_TERMINAL -> onNavigateToTerminal()
+                                        WelcomeEntryAction.OPEN_GIT -> onNavigateToGit()
+                                        WelcomeEntryAction.OPEN_BROWSER -> onNavigateToBrowser()
+                                        WelcomeEntryAction.OPEN_HISTORY -> onNavigateToHistory()
+                                        WelcomeEntryAction.FILL_PROMPT -> onFillPrompt(entry.promptText)
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
+                        // 奇数个入口时右侧补空白占位，保证与偶数行等宽对齐（用户要求「用空白硬撑」）。
+                        if (rowEntries.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
                 }
+            }
             }
         }
     }
@@ -902,10 +946,12 @@ private fun WelcomeEntryCard(
     ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            // 撑满卡片内容区并让文本列占剩余宽度：各卡片图标列对齐、文本在剩余宽度内省略，避免内容居中导致参差。
+            modifier = Modifier.fillMaxWidth()
         ) {
             WelcomeEntryIcon(entry)
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = entry.title,
                     style = MaterialTheme.typography.titleSmall,
@@ -913,15 +959,15 @@ private fun WelcomeEntryCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (entry.subtitle.isNotBlank()) {
-                    Text(
-                        text = entry.subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                // 副标题固定 2 行高度（不足用空白撑满）：各入口 subtitle 行数不同时卡片高度仍一致，四入口对齐。
+                Text(
+                    text = entry.subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    minLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -974,4 +1020,6 @@ private fun WelcomeEntryIcon(entry: WelcomeEntry) {
         }
     }
 }
+
+
 

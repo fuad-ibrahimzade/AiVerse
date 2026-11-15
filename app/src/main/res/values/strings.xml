@@ -857,8 +857,14 @@
     <string name="chat_connecting_remote">正在连接远程服务器…</string>
     <string name="chat_remote_connect_failed">远程服务器连接失败，请检查设置</string>
     <string name="chat_no_remote_connection">未连接远程服务器</string>
-    <string name="chat_placeholder">输入需求，开始协作</string>
+    <string name="chat_placeholder">输入需求，开始写作</string>
     <string name="chat_input_hint">描述需求，AI 可编写、修改或解释代码</string>
+    <string name="chat_greeting_morning">早上好</string>
+    <string name="chat_greeting_noon">中午好</string>
+    <string name="chat_greeting_afternoon">下午好</string>
+    <string name="chat_greeting_evening">晚上好</string>
+    <string name="chat_greeting_late_night">深夜好</string>
+    <string name="chat_greeting_with_reminder">%1$s，夜深了，注意休息</string>
 
     <!-- Agent Status -->
     <string name="agent_stopped_by_user">已被用户停止</string>
