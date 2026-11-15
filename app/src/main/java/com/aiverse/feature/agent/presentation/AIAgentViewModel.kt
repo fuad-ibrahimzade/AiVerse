@@ -420,11 +420,17 @@ class AIAgentViewModel @Inject constructor(
     /** 优化输入的一次性事件（成功/失败），UI 收集后展示 Snackbar。 */
     private val _optimizeEvents = MutableSharedFlow<OptimizeEvent>(extraBufferCapacity = 4)
     val optimizeEvents: SharedFlow<OptimizeEvent> = _optimizeEvents.asSharedFlow()
-    /** 最近一次成功回填前的旧草稿，供「撤销」恢复。 */
-    private var lastOptimizedOriginal: String? = null
-    /** 是否存在可撤销的「优化输入」回填：为 true 时输入栏常驻显示撤销小按钮（不再用成功 Snackbar）。 */
-    private val _canUndoOptimize = MutableStateFlow(false)
-    val canUndoOptimize: StateFlow<Boolean> = _canUndoOptimize.asStateFlow()
+    /**
+     * 最近一次成功回填前的旧草稿，按会话区分（sessionId → 优化前原文），键为优化发生时的会话。
+     * 按会话 key 天然隔离：切换会话无需额外清理（Issue #118 跨会话撤销串扰修复）。
+     */
+    private val _optimizedOriginals = MutableStateFlow<Map<String, String>>(emptyMap())
+    /** 当前会话是否存在可撤销的「优化输入」回填：为 true 时输入栏常驻显示撤销小按钮（不再用成功 Snackbar）。 */
+    val canUndoOptimize: StateFlow<Boolean> = _currentSessionId
+        .flatMapLatest { id ->
+            if (id == null) flowOf(false) else _optimizedOriginals.map { it.containsKey(id) }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /**
      * 「优化输入」：把当前输入框草稿交给模型润色后回填（空草稿不发请求，失败保留原文本）。
@@ -469,8 +475,7 @@ class AIAgentViewModel @Inject constructor(
                 when (val result = agentWorkflow.optimizeInput(id, text, onDelta)) {
                     is OptimizeResult.Success -> {
                         // 以权威全文兜底回填一次：节流窗口内可能还压着最新增量，确保最终与模型输出一致。
-                        lastOptimizedOriginal = text
-                        _canUndoOptimize.value = true
+                        _optimizedOriginals.value = _optimizedOriginals.value + (id to text)
                         updateInputDraft(result.text)
                         // 成功不再弹「已优化」Snackbar：撤销改为输入栏常驻小按钮（见 canUndoOptimize）。
                     }
@@ -495,16 +500,17 @@ class AIAgentViewModel @Inject constructor(
         optimizeJob?.cancel()
     }
 
-    /** 撤销最近一次「优化输入」回填，恢复被覆盖的旧草稿。 */
+    /** 撤销当前会话最近一次「优化输入」回填，恢复被覆盖的旧草稿。 */
     fun undoOptimize() {
-        val original = lastOptimizedOriginal ?: return
-        _canUndoOptimize.value = false
+        val id = _currentSessionId.value ?: return
+        val original = _optimizedOriginals.value[id] ?: return
+        _optimizedOriginals.value = _optimizedOriginals.value - id
         updateInputDraft(original)
     }
 
     fun clearInputDraft() {
         val id = _currentSessionId.value ?: return
-        _canUndoOptimize.value = false
+        _optimizedOriginals.value = _optimizedOriginals.value - id
         _inputDrafts.value = _inputDrafts.value - id
         draftPrefs.edit().remove(id).apply()
     }

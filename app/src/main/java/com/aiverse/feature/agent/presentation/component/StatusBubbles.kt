@@ -741,7 +741,7 @@ internal fun ReasoningBubble(
                 .clickable { toggleExpanded(!expanded) },
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ThinkingGlyph(tint = Brand.IconGray, iconSize = 16.dp)
+            ThinkingGlyph(tint = Brand.IconGray, iconSize = t.scale(16))
             Spacer(Modifier.width(Spacing.sm))
             Text(
                 text = label,
@@ -755,7 +755,7 @@ internal fun ReasoningBubble(
                 expanded = expanded,
                 contentDescription = if (expanded) stringResource(R.string.common_collapse) else stringResource(R.string.common_expand),
                 tint = Brand.IconGray,
-                size = 18.dp
+                size = t.scale(18)
             )
         }
         AnimatedVisibility(

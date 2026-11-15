@@ -91,6 +91,14 @@ data class BackupMetadata(
     val themeMode: String? = null,
     val themePresetId: String? = null,
     val dynamicColorEnabled: Boolean = false,
+    /** 备份快照：聊天字号（sp）；null 表示旧备份无此字段或未备份应用设置，导入时清除该键回退默认。 */
+    val chatFontSizeSp: Int? = null,
+    /** 备份快照：输入框字号（sp）；null 表示旧备份无此字段或未备份应用设置，导入时清除该键回退默认。 */
+    val inputFontSizeSp: Int? = null,
+    /** 备份快照：界面缩放系数；null 表示旧备份无此字段或未备份应用设置，导入时清除该键回退默认。 */
+    val uiFontScale: Float? = null,
+    /** 备份快照：界面密度档 id；null 表示旧备份无此字段或未备份应用设置，导入时清除该键回退默认。 */
+    val uiDensity: String? = null,
     val codeFontSizeSp: Int = 13,
     val codeWrapEnabled: Boolean = false,
     val codeAutoFoldEnabled: Boolean = true,

@@ -120,7 +120,7 @@ internal fun SkillsSection(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = Spacing.xl, vertical = 48.dp),
+                    .padding(horizontal = Spacing.xl, vertical = Spacing.xxl),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -332,7 +332,7 @@ private fun SkillRow(
                     .size(36.dp)
                     .background(
                         color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(t.chipCorner)
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -349,7 +349,7 @@ private fun SkillRow(
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
                 ) {
                     Text(
                         text = entry.name,
@@ -393,7 +393,7 @@ private fun SkillEmptyHint(text: String) {
         text = text,
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = Spacing.lg, vertical = 12.dp)
+        modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md)
     )
 }
 
@@ -445,7 +445,7 @@ private fun SkillDefaultScopeSetting(
             onDismissRequest = { showSkillScopeSheet = false },
             title = { Text(stringResource(R.string.prompt_skill_default_scope)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     SkillScopeOptionRow(
                         scope = SkillScope.PROJECT,
                         current = defaultSkillInstallScope,
@@ -485,7 +485,7 @@ private fun SkillScopeOptionRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
+            .padding(vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {

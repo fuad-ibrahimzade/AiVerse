@@ -409,6 +409,10 @@ class BackupManagerImpl @Inject constructor(
         themeMode = if (options.appSettings) themeSettingsRepository.snapshot() else null,
         themePresetId = if (options.appSettings) themeSettingsRepository.presetSnapshot() else null,
         dynamicColorEnabled = if (options.appSettings) themeSettingsRepository.dynamicColorSnapshot() else false,
+        chatFontSizeSp = if (options.appSettings) appearanceSettingsRepository.chatFontSizeSnapshot() else null,
+        inputFontSizeSp = if (options.appSettings) appearanceSettingsRepository.inputFontSizeSnapshot() else null,
+        uiFontScale = if (options.appSettings) appearanceSettingsRepository.uiFontScaleSnapshot() else null,
+        uiDensity = if (options.appSettings) appearanceSettingsRepository.uiDensitySnapshot() else null,
         codeFontSizeSp = if (options.appSettings) appearanceSettingsRepository.codeFontSizeSnapshot() else 13,
         codeWrapEnabled = if (options.appSettings) appearanceSettingsRepository.codeWrapSnapshot() else false,
         codeAutoFoldEnabled = if (options.appSettings) appearanceSettingsRepository.codeAutoFoldSnapshot() else true,
@@ -859,6 +863,12 @@ class BackupManagerImpl @Inject constructor(
                 meta.codeShowLineNumber,
                 meta.userBubbleOpacity,
                 meta.assistantBubbleOpacity
+            )
+            appearanceSettingsRepository.restoreFontSizes(
+                meta.chatFontSizeSp,
+                meta.inputFontSizeSp,
+                meta.uiFontScale,
+                meta.uiDensity
             )
             keepaliveSettingsRepository.restore(meta.keepaliveEnabled)
             liveNotificationSettingsRepository.restore(meta.liveNotificationEnabled)

@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.size
@@ -568,8 +569,7 @@ internal fun ChatInputBar(
 
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.xs),
+                        .fillMaxWidth(),
                     verticalAlignment = Alignment.Top
                 ) {
                     TextField(
@@ -1454,13 +1454,14 @@ internal fun ErrorBubble(
     var copied by remember(message) { mutableStateOf(false) }
     val clipboard = LocalClipboard.current
     val copyScope = rememberCoroutineScope()
+    val t = LocalUIDensityTokens.current
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = Spacing.xs),
         color = glassOr(MaterialTheme.semanticColors.surfaceGlass, MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(Radius.md),
-        border = BorderStroke(1.dp, glassBorderOr(MaterialTheme.semanticColors.surfaceGlassBorder))
+        border = BorderStroke(t.scale(1), glassBorderOr(MaterialTheme.semanticColors.surfaceGlassBorder))
     ) {
         // 折叠态收紧留白：上下内边距用 sm 而非 md，行内按钮收紧到 30dp，整卡高度贴近单行文字。
         Column(modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)) {
@@ -1475,7 +1476,7 @@ internal fun ErrorBubble(
                     FeatherIcons.AlertCircle,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(t.scale(16))
                 )
                 Spacer(Modifier.width(Spacing.sm))
                 Text(
@@ -1499,25 +1500,25 @@ internal fun ErrorBubble(
                             copied = true
                         }
                     },
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.size(t.scale(30))
                 ) {
                     Icon(
                         if (copied) FeatherIcons.Check else FeatherIcons.Copy,
                         contentDescription = if (copied) stringResource(R.string.chat_copied) else stringResource(R.string.chat_copy),
                         tint = if (copied) MaterialTheme.colorScheme.primary else Brand.IconGray,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(t.scale(16))
                     )
                 }
                 if (onDismiss != null) {
                     IconButton(
                         onClick = onDismiss,
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(t.scale(30))
                     ) {
                         Icon(
                             FeatherIcons.X,
                             contentDescription = stringResource(R.string.common_close),
                             tint = Brand.IconGray,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(t.scale(16))
                         )
                     }
                 }
@@ -1532,7 +1533,7 @@ internal fun ErrorBubble(
                     SelectionContainer {
                         Column(
                             modifier = Modifier
-                                .heightIn(max = 160.dp)
+                                .heightIn(max = t.scale(160))
                                 .verticalScroll(rememberScrollState())
                         ) {
                             Text(
