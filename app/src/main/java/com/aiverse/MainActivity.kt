@@ -48,6 +48,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalView
@@ -1213,6 +1214,11 @@ fun AppNavigation(
     } else {
         ModalNavigationDrawer(
             drawerState = drawerState,
+            // 抽屉自带的 scrim 是半透明黑，开合动画期间会盖在右侧聊天区上，
+            // 造成「点 ☰ 打开 / 按返回收起时聊天区先变黑再恢复」的闪黑（用户反馈 bug）。
+            // 这里显式设为透明：聊天区在抽屉开合时保持原色，不再被 scrim 扫黑；
+            // 抽屉与内容的层次仍由 drawerContainerColor（pageBackground）与抽屉内容自身区分。
+            scrimColor = Color.Transparent,
             // 仅在聊天页启用手势滑出；其他页面禁止（但已打开时始终可关闭）。
             gesturesEnabled = currentRoute == "chat" || drawerState.isOpen,
             drawerContent = {
@@ -1222,7 +1228,7 @@ fun AppNavigation(
                     drawerTonalElevation = 0.dp,
                     // 不在 sheet 上叠 .shadow(clip=false)：这层 RenderNode 图形修饰会干扰 ModalNavigationDrawer
                     // 自带 scrim 的合成（表现为手势滑出不变暗、点 ☰ 暗一下即恢复）。抽屉层次感交给
-                    // drawerTonalElevation / drawerContainerColor 与 scrim 本身，宽度仍走 drawerWidth()。
+                    // drawerTonalElevation / drawerContainerColor（scrim 已在上方显式透明，不再参与层次），宽度仍走 drawerWidth()。
                     modifier = Modifier.width(drawerWidth())
                 ) {
                     drawerBody()
