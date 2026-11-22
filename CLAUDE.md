@@ -360,6 +360,7 @@ Room：`feature/agent/data/local/database/AgentDatabase.kt` + 各 DAO。迁移�
 
 - **所有功能 / UI / 多文件改动 / 架构重构 / 补单测** → **禁止直接 `git push origin main`**。必须：从最新 `origin/main` 拉一个**独立分支**（命名 `feat/xxx` / `refactor/xxx` / `fix/xxx`，一个功能或一批相关改动一个分支）→ 提交 → `git push` → 从该分支开 PR 合回 `main`。
 - **分支命名**：动手前先定分支名，`feat/<模块>-<简述>` 风格；不要把不相关的改动堆进同一个分支。
+- **一次任务只创建一个分支**：本轮要处理的多个 issue / 问题，统一在**同一个分支**上完成，**不要为每个问题单独开分支**。多个问题通过**多次提交**区分——每个 issue（或每类相关改动）单独一个 commit（各自 Conventional Commits 中文描述 + 受理人署名 + 单独一行 `Closes #N`），最后从这一个分支统一开**一个 PR** 合回 `main`。
 - **日常 bug 修复 / CI 与构建配置 / 纯文档 / 资源文案** → 同样优先走独立分支 + PR；仅**紧急线上修复**（hotfix）且经用户同意才可直推 `main`。
 - **预览版热修复** → 从该 RC Tag 拉 `hotfix/xxx`，仍走 PR。
 - **分支白名单（清理时永不列为可删候选）**，分两类：
