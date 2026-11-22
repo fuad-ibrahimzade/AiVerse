@@ -376,6 +376,7 @@ class PluginsViewModel @Inject constructor(
                         // 来源变了就不沿用旧包拿到的高危授权，启用状态保持原样
                         shizukuPermissionRepository.revoke(result.pluginId)
                         overlayPermissionRepository.revoke(result.pluginId)
+                        sshPermissionRepository.revoke(result.pluginId)
                         overlayManager.closePlugin(result.pluginId)
                     }
                     syncProviders(result.pluginId)
@@ -601,6 +602,7 @@ class PluginsViewModel @Inject constructor(
             shizukuPermissionRepository.revoke(id)
             overlayPermissionRepository.revoke(id)
             backupPermissionRepository.revoke(id)
+            sshPermissionRepository.revoke(id)
         }
         pluginTerminalRunner.closePlugin(id)
         tipManager.dismissPlugin(id)
