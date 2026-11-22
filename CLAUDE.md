@@ -126,7 +126,7 @@ com/aiverse/
    - 动了内置供应商 → 只改 `data/providers.json`（不碰 assets 快照）
    - 动了容器镜像 → 不手改生成结果，改脚本配置或 `sources` 表
    - 动了 UI 尺寸 → 检查每个 dp 是否统一走 token / UIDensity scale
-5. **验证**：编译型代码改完跑 `:app:assembleUniversalDebug` 冒烟；推前跑单测 + 迁移对账。
+5. **验证**：编译型代码改完跑 `:app:assembleUniversalDebug` 冒烟；冒烟通过后直接推分支开 PR（PR CI 会自动跑单测 + 迁移对账）。
 6. **提交**：Conventional Commits（`fix(settings): …`），中文描述；修 issue 末尾每个 issue 单独一行 `Closes #N`。
 
 ---
@@ -205,8 +205,7 @@ com/aiverse/
 阶段四审核通过必须同时满足：
 
 - 对应 flavor 冒烟编译通过；
-- 推送前单测通过；
-- 迁移对账通过（如动 DB）；
+- PR CI 检查通过（单测 + 迁移对账由 `.github/workflows/pr-check.yml` 自动触发，无需本地重复跑）；
 - `prompts/` 已同步（如动 Agent 工具/行为）；
 - `docs-site/docs/` 已同步（如动 UI/功能）；
 - 双语 `strings.xml` 已同步（如动用户可见文案）；
@@ -230,7 +229,7 @@ sh gradlew :app:assembleUniversalDebug \
 --stacktrace
 ```
 
-- **冒烟构建**用 `:app:assembleUniversalDebug`（勿用 `assembleDebug` / `build` 聚合任务，会跨 flavor 全跑）；推送前单测 `:app:testUniversalDebugUnitTest`；迁移对账 `python3 scripts/check_migrations.py`（或 `./gradlew checkMigrations`）。
+- **冒烟构建**用 `:app:assembleUniversalDebug`（勿用 `assembleDebug` / `build` 聚合任务，会跨 flavor 全跑）。单测与迁移对账由 PR CI（`.github/workflows/pr-check.yml`）自动触发，本地无需重复跑。
 - `gradlew` 无执行位（文件系统限制），容器内一律 `sh gradlew` 调用；`chmod +x` 无效。
 - 依赖 Gradle wrapper 8.14、AGP 8.9.3、android-36 已就绪；`local.properties` 的 `sdk.dir=/root/android/sdk`。
 
@@ -344,13 +343,13 @@ Room：`feature/agent/data/local/database/AgentDatabase.kt` + 各 DAO。迁移�
 
 ### 8.1 构建与验证
 
-**改完编译型代码（`.kt` / `.gradle.kts` / `AndroidManifest.xml`）→ 提交前必跑冒烟编译；`git push` 前必跑单元测试，并跑 `check_migrations.py` 迁移对账。** 只改文档 / 资源文案 / 纯 `.md` 时这些跳过。
+**改完编译型代码（`.kt` / `.gradle.kts` / `AndroidManifest.xml`）→ 提交前必跑冒烟编译；冒烟通过后直接推分支开 PR，单测与迁移对账由 PR CI 自动执行。** 只改文档 / 资源文案 / 纯 `.md` 时冒烟也跳过。
 
 | 用途 | 命令 |
 | --- | --- |
 | 冒烟编译（日常默认） | `./gradlew :app:assembleUniversalDebug`（容器内用 3GB 堆 + `sh gradlew`） |
-| 推送前单测 | `./gradlew :app:testUniversalDebugUnitTest` |
-| 推送前迁移对账 | `python3 scripts/check_migrations.py`（或 `./gradlew checkMigrations`） |
+| PR CI 自动执行 | 单测 `:app:testUniversalDebugUnitTest` + 迁移对账 `check_migrations.py`（`.github/workflows/pr-check.yml`） |
+| 本地手动跑（可选，调试时用） | `./gradlew :app:testUniversalDebugUnitTest` / `python3 scripts/check_migrations.py` |
 | 发版构建 APK / AAB | `./gradlew assembleRelease` / `./gradlew bundleRelease` |
 
 - **别用聚合任务做日常验证**：`assembleDebug` / `assembleRelease` / `test` / `build` 都会跨三个 flavor 全跑，耗时极长。

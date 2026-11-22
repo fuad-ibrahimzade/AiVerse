@@ -15,7 +15,6 @@ permissions:
   contents: read
 
 jobs:
-  # ── 第一步：单测 + 迁移对账，任一失败则后续构建不跑 ──
   test:
     if: ${{ github.event_name == 'workflow_dispatch' || ! github.event.pull_request.draft }}
     runs-on: ubuntu-latest
@@ -42,36 +41,3 @@ jobs:
 
       - name: 迁移对账
         run: python3 scripts/check_migrations.py
-
-  # ── 第二步：测试通过后构建 APK，产物上传为 Artifact 供下载验证 ──
-  build:
-    needs: [test]
-    if: ${{ github.event_name == 'workflow_dispatch' || ! github.event.pull_request.draft }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: 构建 Debug APK
-        run: >
-          sh gradlew :app:assembleUniversalDebug
-          -Dorg.gradle.jvmargs="-Xmx3072m -XX:MaxMetaspaceSize=768m -XX:+UseParallelGC"
-          --stacktrace
-
-      - name: 上传 APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-universal-debug
-          path: app/build/outputs/apk/universal/debug/app-universal-debug.apk
-          retention-days: 7
