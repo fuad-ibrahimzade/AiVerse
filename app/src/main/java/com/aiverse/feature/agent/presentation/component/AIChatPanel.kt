@@ -2297,8 +2297,9 @@ fun AIChatPanel(
 
             // 悬浮顶栏（issue #194）：不再占用 Scaffold topBar 槽位，改为叠加在消息列表上方，
             // 列表顶部 contentPadding 已预留其高度，滚动时内容可从顶栏底下穿过（与输入框表现一致）。
-            // 滚动时轻微变淡；整块 alpha 会连背景一起透出消息泛白（issue #66），故垫一层渐变 scrim
-            // 随 headerAlpha 淡出，scrim 底下直接是滚动的消息，实现「看得见看不清」。
+            // 滚动时渐变 scrim 始终保持自身 alpha、不随 headerAlpha 淡出，持续垫在顶栏文字底下
+            // 遮住滚过的消息（守住 issue #66）；仅 ChatHeader 的图标/文字随 headerAlpha 淡出，
+            // 实现「看得见看不清」（issue #194）。
             val headerAlpha by animateFloatAsState(
                 targetValue = if (listState.isScrollInProgress) 0.4f else 1f,
                 animationSpec = tween(200),
@@ -2314,7 +2315,6 @@ fun AIChatPanel(
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
                     .onSizeChanged { headerHeightPx = it.height.toFloat() }
-                    .graphicsLayer { alpha = headerAlpha }
                     .background(
                         Brush.verticalGradient(
                             listOf(
@@ -2326,6 +2326,9 @@ fun AIChatPanel(
                         )
                     )
             ) {
+            // 内层 Box 仅包裹 ChatHeader 内容，graphicsLayer alpha 只作用于图标/文字；
+            // 外层 scrim 不受影响，滚动时始终维持高不透明度遮住透出的消息笔画。
+            Box(modifier = Modifier.graphicsLayer { alpha = headerAlpha }) {
             ChatHeader(
                 sessionTitle = sessionTitle,
                 modelName = activeProvider?.effectiveModel,
@@ -2366,7 +2369,8 @@ fun AIChatPanel(
                 onOpenPluginPage = openPluginPage,
                 onRunPluginAction = runPluginAction
             )
-            }
+            } // 内层 Box 结束
+            } // 外层 scrim Box 结束
 
             // 悬浮层：错误气泡 / 面板 / 输入框（蒙版在 ChatInputBar 内部，跟随键盘上移）
             val floatingPanelAlpha by animateFloatAsState(
