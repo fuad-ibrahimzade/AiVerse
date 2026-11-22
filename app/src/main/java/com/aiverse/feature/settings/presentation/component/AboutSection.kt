@@ -55,8 +55,8 @@ import compose.icons.FeatherIcons
 import compose.icons.feathericons.AlertCircle
 import compose.icons.feathericons.Book
 import compose.icons.feathericons.Check
-import compose.icons.feathericons.ChevronDown
-import compose.icons.feathericons.ChevronUp
+import com.aiverse.core.ui.ExpandableChevronIcon
+import com.aiverse.core.ui.ChevronRotationStyle
 import compose.icons.feathericons.Download
 import compose.icons.feathericons.Github
 import compose.icons.feathericons.Globe
@@ -138,12 +138,15 @@ internal fun AboutSection(
                     title = stringResource(R.string.about_update_settings),
                     subtitle = stringResource(R.string.about_update_settings_desc),
                     onClick = { showUpdateSettings = !showUpdateSettings },
+                    // 行尾只用一个展开箭头：禁用 SettingsRow 自动补的静态右箭头，
+                    // 否则与下面 trailing 的展开箭头叠成两个（issue #191）。
+                    showEndChevron = false,
                     trailing = {
-                        Icon(
-                            imageVector = if (showUpdateSettings) FeatherIcons.ChevronUp else FeatherIcons.ChevronDown,
-                            contentDescription = null,
-                            tint = MaterialTheme.semanticColors.subtleText,
-                            modifier = Modifier.size(16.dp)
+                        ExpandableChevronIcon(
+                            expanded = showUpdateSettings,
+                            style = ChevronRotationStyle.RIGHT_DOWN,
+                            size = 16.dp,
+                            tint = MaterialTheme.semanticColors.subtleText
                         )
                     }
                 )

@@ -283,6 +283,8 @@ internal fun settingsIconTint(icon: ImageVector): Color =
  * @param icon 左侧图标，null 则标题与无图标行对齐。
  * @param trailing 右侧尾随内容（如 [com.aiverse.core.ui.AppSwitch]、chevron）。
  * @param onClick null 表示无点击行为（如开关行）；非 null 时行尾自动显示右箭头。
+ * @param showEndChevron 可点击时是否在行尾自动补静态右箭头。行自带展开/收起箭头（见
+ *   [com.aiverse.core.ui.ExpandableChevronIcon]）时传 false，避免与自动右箭头叠成双箭头（issue #191）。
  */
 @Composable
 internal fun SettingsRow(
@@ -292,6 +294,7 @@ internal fun SettingsRow(
     trailing: (@Composable RowScope.() -> Unit)? = null,
     subtitle: String? = null,
     enabled: Boolean = true,
+    showEndChevron: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val baseModifier = modifier
@@ -335,7 +338,7 @@ internal fun SettingsRow(
             }
         }
         trailing?.invoke(this)
-        if (onClick != null && enabled) {
+        if (onClick != null && enabled && showEndChevron) {
             Spacer(Modifier.width(Spacing.xs))
             Icon(
                 imageVector = FeatherIcons.ChevronRight,
