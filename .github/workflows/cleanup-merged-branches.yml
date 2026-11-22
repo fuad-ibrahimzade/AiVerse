@@ -1,0 +1,68 @@
+name: 清理已关闭 PR 的分支
+
+on:
+  # PR 关闭后立即触发
+  pull_request:
+    types: [closed]
+  # 每天中国时间早上 7:00 兜底（= UTC 23:00，处理 PR 关闭时未及时删的情况）
+  schedule:
+    - cron: '0 23 * * *'
+  # 支持手动触发
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 删除已关闭 PR 对应的分支
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_HEAD: ${{ github.event.pull_request.head.ref }}
+        run: |
+          # ── PR 触发时：PR 已关闭（含合并），直接删该 PR 的源分支 ──
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "PR 已关闭，删除源分支: $PR_HEAD"
+            git push origin --delete "$PR_HEAD" 2>/dev/null \
+              && echo "已删除: $PR_HEAD" \
+              || echo "分支不存在或已删除: $PR_HEAD"
+            exit 0
+          fi
+
+          # ── schedule / workflow_dispatch：定时兜底扫描 ──
+          # 永久白名单：永不删除
+          PERMANENT="main data"
+
+          # 列出所有远程分支
+          BRANCHES=$(git branch -r --format='%(refname:short)' \
+            | grep '^origin/' | sed 's|^origin/||' | grep -v 'HEAD')
+
+          for branch in $BRANCHES; do
+            # 跳过永久白名单
+            if echo "$PERMANENT" | grep -qw "$branch"; then
+              echo "跳过（永久白名单）: $branch"
+              continue
+            fi
+
+            # 通过 GitHub API 查询该分支是否有「已关闭」的 PR
+            # 没有关联的已关闭 PR → 不删（手动创建的分支、仍在使用的分支全部保留）
+            CLOSED_PR=$(gh pr list --state closed --head "$branch" \
+              --json number --jq '.[0].number' 2>/dev/null)
+
+            if [ -n "$CLOSED_PR" ] && [ "$CLOSED_PR" != "null" ]; then
+              echo "删除（PR #$CLOSED_PR 已关闭）: $branch"
+              git push origin --delete "$branch" 2>/dev/null \
+                && echo "已删除: $branch" \
+                || echo "删除失败（可能已不存在）: $branch"
+            else
+              echo "保留（无已关闭 PR）: $branch"
+            fi
+          done
