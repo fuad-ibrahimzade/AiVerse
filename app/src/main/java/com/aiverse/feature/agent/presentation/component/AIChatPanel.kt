@@ -984,6 +984,14 @@ fun AIChatPanel(
         delay(MESSAGES_LOADING_HINT_DELAY_MS)
         showMessagesLoading = true
     }
+    // 顶栏滚动留白：首帧测量前用兜底估算值，实测 ChatHeader 高度后改为动态值，
+    // 让消息列表顶部预留出悬浮顶栏的高度，首条消息不钻到顶栏下（issue #194）。
+    // 与下方 inputBarBottomReserveDp 同一套「兜底→实测」模式。
+    val chatHeaderBottomReserveDp = 104.dp
+    var headerHeightPx by remember { mutableStateOf(0f) }
+    val headerReserveDp = with(LocalDensity.current) {
+        (if (headerHeightPx > 0f) headerHeightPx else chatHeaderBottomReserveDp.toPx()).toDp()
+    }
     // 贴底滚动留白：首帧测量前用兜底值（约输入框 + 间距），实测悬浮层高度后改为动态值，
     // 横幅/面板/输入框任何形态下最后一条消息都停在悬浮层上方不被遮挡。
     val inputBarBottomReserveDp = 156.dp
@@ -1985,84 +1993,10 @@ fun AIChatPanel(
             MaterialTheme.colorScheme.background
         },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            // 顶栏滚动时轻微变淡（与输入框悬浮层一致）。整块 alpha 会连背景一起透出消息泛白（issue #66），
-            // 故对齐底部数据栏：垫一层不透明渐变 scrim（由上到下变透）随 headerAlpha 一起淡出，
-            // scrim 淡出后底下仍是实色 Scaffold background，不再透字；色值跟随输入框同一 backgroundEnabled 口径。
-            val headerAlpha by animateFloatAsState(
-                targetValue = if (listState.isScrollInProgress) 0.4f else 1f,
-                animationSpec = tween(200),
-                label = "chat-header-alpha"
-            )
-            var headerHeightPx by remember { mutableStateOf(0f) }
-            val headerScrimColor = if (chatBackgroundEnabled) {
-                MaterialTheme.colorScheme.background
-            } else {
-                MaterialTheme.colorScheme.surface
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onSizeChanged { headerHeightPx = it.height.toFloat() }
-                    .graphicsLayer { alpha = headerAlpha }
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                headerScrimColor.copy(alpha = 0.98f * LocalChatPanelOpacity.current),
-                                headerScrimColor.copy(alpha = 0f)
-                            ),
-                            startY = 0f,
-                            endY = headerHeightPx
-                        )
-                    )
-            ) {
-            ChatHeader(
-                sessionTitle = sessionTitle,
-                modelName = activeProvider?.effectiveModel,
-                inputTokens = sessionInputTokens,
-                outputTokens = sessionOutputTokens,
-                onOpenDrawer = {
-                    keyboardController?.hide()
-                    onOpenDrawer()
-                },
-                onNewChat = { viewModel.newSession() },
-                onNavigateToTerminal = onNavigateToTerminal,
-                onNavigateToGit = onNavigateToGit,
-                onNavigateToBrowser = onNavigateToBrowser,
-                currentMode = currentMode,
-                onToggleMode = { viewModel.setSessionMode(it) },
-                connectionState = connectionState?.takeIf { isRemote },
-                showMenuButton = showMenuButton,
-                terminalActive = terminalActive,
-                gitActive = gitActive,
-                browserActive = browserActive,
-                sessionId = currentSessionId,
-                onRenameSession = { id, title -> viewModel.renameSession(id, title) },
-                providerId = activeProvider?.id.orEmpty(),
-                providers = providers,
-                modelMetadata = modelMetadata,
-                onSelectModel = { p, m -> viewModel.setSessionProviderModel(p, m) },
-                runModelTest = settingsViewModel?.let { svm -> { p, m -> svm.runModelTest(p, m) } },
-                tokenProgress = contextTokenProgress,
-                tokenEstimated = contextTokenEstimated,
-                contextUsageDetail = contextUsageDetail,
-                compactionThresholdPercent = compactionThresholdPercent,
-                onCompactContext = { viewModel.compactCurrentSession() },
-                onOpenMessageTimeline = { showMessageTimeline = true },
-                currentRole = currentRole,
-                onOpenRoleSwitcher = { showRoleSwitcher = true },
-                pluginHeaderEntries = headerPluginEntries,
-                pluginLanguageTag = pluginLanguageTag,
-                onOpenPluginPage = openPluginPage,
-                onRunPluginAction = runPluginAction
-            )
-            }
-        }
-    ) { padding ->
+    ) { _ ->
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .padding(padding)
         ) {
         // 大屏正文列限宽居中：铺满整个平板宽度会让一行文字过长、气泡横跨全屏，读起来很累。
         // 窄窗下 readableContentMaxWidth() 返回 Dp.Unspecified，widthIn 不产生任何约束。
@@ -2151,7 +2085,9 @@ fun AIChatPanel(
                         contentPadding = PaddingValues(
                             start = t.lg,
                             end = t.lg,
-                            top = t.md,
+                            // 顶部预留悬浮顶栏高度（issue #194）：列表延伸到顶栏区域，
+                            // 首条消息停在顶栏下方，滚动时内容可从顶栏底下穿过。
+                            top = headerReserveDp + t.md,
                             bottom = with(LocalDensity.current) { inputBarReservePx.toDp() }
                         )
                     ) {
@@ -2358,6 +2294,79 @@ fun AIChatPanel(
                 }
             }
             } // 内容层结束
+
+            // 悬浮顶栏（issue #194）：不再占用 Scaffold topBar 槽位，改为叠加在消息列表上方，
+            // 列表顶部 contentPadding 已预留其高度，滚动时内容可从顶栏底下穿过（与输入框表现一致）。
+            // 滚动时轻微变淡；整块 alpha 会连背景一起透出消息泛白（issue #66），故垫一层渐变 scrim
+            // 随 headerAlpha 淡出，scrim 底下直接是滚动的消息，实现「看得见看不清」。
+            val headerAlpha by animateFloatAsState(
+                targetValue = if (listState.isScrollInProgress) 0.4f else 1f,
+                animationSpec = tween(200),
+                label = "chat-header-alpha"
+            )
+            val headerScrimColor = if (chatBackgroundEnabled) {
+                MaterialTheme.colorScheme.background
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .onSizeChanged { headerHeightPx = it.height.toFloat() }
+                    .graphicsLayer { alpha = headerAlpha }
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                headerScrimColor.copy(alpha = 0.98f * LocalChatPanelOpacity.current),
+                                headerScrimColor.copy(alpha = 0f)
+                            ),
+                            startY = 0f,
+                            endY = headerHeightPx
+                        )
+                    )
+            ) {
+            ChatHeader(
+                sessionTitle = sessionTitle,
+                modelName = activeProvider?.effectiveModel,
+                inputTokens = sessionInputTokens,
+                outputTokens = sessionOutputTokens,
+                onOpenDrawer = {
+                    keyboardController?.hide()
+                    onOpenDrawer()
+                },
+                onNewChat = { viewModel.newSession() },
+                onNavigateToTerminal = onNavigateToTerminal,
+                onNavigateToGit = onNavigateToGit,
+                onNavigateToBrowser = onNavigateToBrowser,
+                currentMode = currentMode,
+                onToggleMode = { viewModel.setSessionMode(it) },
+                connectionState = connectionState?.takeIf { isRemote },
+                showMenuButton = showMenuButton,
+                terminalActive = terminalActive,
+                gitActive = gitActive,
+                browserActive = browserActive,
+                sessionId = currentSessionId,
+                onRenameSession = { id, title -> viewModel.renameSession(id, title) },
+                providerId = activeProvider?.id.orEmpty(),
+                providers = providers,
+                modelMetadata = modelMetadata,
+                onSelectModel = { p, m -> viewModel.setSessionProviderModel(p, m) },
+                runModelTest = settingsViewModel?.let { svm -> { p, m -> svm.runModelTest(p, m) } },
+                tokenProgress = contextTokenProgress,
+                tokenEstimated = contextTokenEstimated,
+                contextUsageDetail = contextUsageDetail,
+                compactionThresholdPercent = compactionThresholdPercent,
+                onCompactContext = { viewModel.compactCurrentSession() },
+                onOpenMessageTimeline = { showMessageTimeline = true },
+                currentRole = currentRole,
+                onOpenRoleSwitcher = { showRoleSwitcher = true },
+                pluginHeaderEntries = headerPluginEntries,
+                pluginLanguageTag = pluginLanguageTag,
+                onOpenPluginPage = openPluginPage,
+                onRunPluginAction = runPluginAction
+            )
+            }
 
             // 悬浮层：错误气泡 / 面板 / 输入框（蒙版在 ChatInputBar 内部，跟随键盘上移）
             val floatingPanelAlpha by animateFloatAsState(
