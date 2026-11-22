@@ -275,7 +275,7 @@ Closes #73
 - issue 编号放行尾，**必须用井号加数字并套括号 `(#N)`**，例如 `- 修复远端图片 (#173)`；不要把 `#N` 写在行首，不要漏括号。
 - 默认不写 `> [!NOTE]`；只有确实需要升级提醒（迁移、签名、兼容性、必须手动安装）才加，保持一两行。
 - 本轮关闭的 issue 全部写进公告，一个不漏。
-- 时机：所有代码最终改完、单测通过、迁移对账通过之后，提交/推送前写；不要在开发中途提前写。
+- **时机（硬规则，卡在用户真机确认之后、推送之前）**：① 先冒烟出 APK 交用户真机验证；② **用户确认没问题后**才动笔写公告；③ 写完公告再随代码一起推。顺序不得颠倒：**未拿到用户「没问题」之前不写公告，写了公告也未推**；也不要在开发中途提前写。
 - 覆盖范围：上一个正式版本到现在；发版流程按 `<版本号>.md` 读取。
 
 ### 5.9 代码质量准则
@@ -305,7 +305,7 @@ Room：`feature/agent/data/local/database/AgentDatabase.kt` + 各 DAO。迁移�
 
 - **发布即冻结**：已打 `v*` tag 的迁移文件内容与编号不可再改，补丁只能靠新增迁移修正。
 - **合流后移**：RC/hotfix 若带数据库迁移，其迁移号一旦随 tag 发布即占用；合回 `main` 时，`main` 上所有编号 ≤ 已发布最大版本号的未发布迁移必须整体重编号到该上限之后（内容一字不改、编号连续），并同步递增 `SCHEMA_VERSION`。已发布号一律不可复用。
-- **对账脚本**：`python3 scripts/check_migrations.py`（或 `./gradlew checkMigrations`）校验编号连续、`SCHEMA_VERSION` 一致、已发布迁移未被篡改/复用，**推送前必跑**；CI 已挂载，合流后未后移会被拦下。
+- **对账脚本**：`python3 scripts/check_migrations.py`（或 `./gradlew checkMigrations`）校验编号连续、`SCHEMA_VERSION` 一致、已发布迁移未被篡改/复用。**本地调试可跑，推送前闸门已取消，交由云端 PR CI 强制执行**（合流后未后移会被 CI 拦下）。
 
 **迁移失败处理**：不得手改已发布迁移；新增修正迁移。
 
@@ -343,13 +343,13 @@ Room：`feature/agent/data/local/database/AgentDatabase.kt` + 各 DAO。迁移�
 
 ### 8.1 构建与验证
 
-**改完编译型代码（`.kt` / `.gradle.kts` / `AndroidManifest.xml`）→ 提交前必跑冒烟编译；冒烟通过后直接推分支开 PR，单测与迁移对账由 PR CI 自动执行。** 只改文档 / 资源文案 / 纯 `.md` 时冒烟也跳过。
+**改完编译型代码（`.kt` / `.gradle.kts` / `AndroidManifest.xml`）→ 提交前必跑冒烟编译；冒烟通过后推分支开 PR（或追加到既有 PR，见 8.3 第 0 条），单测与迁移对账由云端 PR CI 自动执行，本地不再跑推送前闸门。** 只改文档 / 资源文案 / 纯 `.md` 时冒烟也跳过。
 
 | 用途 | 命令 |
 | --- | --- |
 | 冒烟编译（日常默认） | `./gradlew :app:assembleUniversalDebug`（容器内用 3GB 堆 + `sh gradlew`） |
 | PR CI 自动执行 | 单测 `:app:testUniversalDebugUnitTest` + 迁移对账 `check_migrations.py`（`.github/workflows/pr-check.yml`） |
-| 本地手动跑（可选，调试时用） | `./gradlew :app:testUniversalDebugUnitTest` / `python3 scripts/check_migrations.py` |
+| 本地手动跑（仅调试，**推送前闸门已取消**） | `./gradlew :app:testUniversalDebugUnitTest` / `python3 scripts/check_migrations.py` |
 | 发版构建 APK / AAB | `./gradlew assembleRelease` / `./gradlew bundleRelease` |
 
 - **别用聚合任务做日常验证**：`assembleDebug` / `assembleRelease` / `test` / `build` 都会跨三个 flavor 全跑，耗时极长。
@@ -366,13 +366,14 @@ Room：`feature/agent/data/local/database/AgentDatabase.kt` + 各 DAO。迁移�
 
 **在本地验证完再推送，不用 `gh pr merge` 在远端直接合。**
 
+0. **推送落点：追加到既有 PR，不要另开新 PR（硬规则）**。审核某个 PR 时发现问题、或对本次已推送改动做补充修正，一律 `git push origin <该 PR 的 head 分支>`，把修复追加到**同一个 PR**，不要单独新建 PR。判断口径：改动与该 PR 已有内容**相关**（同一批 issue / 同一主题 / 审核发现的回归或遗漏）→ 追加；改动是**新功能或与现有 PR 无关的新问题** → 才开新分支、新建 PR。**云端 PR CI 会在推送后自动跑单测 + 迁移对账，有问题会通知，本地不要再跑推送前闸门。**
 1. **摸状态**：`git fetch origin` → `gh pr view <N> --json state,mergeable,mergeStateStatus,headRefName,changedFiles` + `gh pr checks <N>` → `git rev-list --left-right --count origin/main...main`。fork PR 的 Vercel 必报 `Authorization required to deploy` 属正常，只看 `Build & Test` 是否 pass。
 2. **拉到本地**：`git fetch origin pull/<N>/head:pr-<N>`。勿用 `gh pr checkout`。
 3. **审查**：`gh pr diff <N> > /tmp/pr<N>.diff` 通读。PR 描述与 CodeRabbit 结论都不算证据，逐项落地核实：新依赖、`R.string` 双语存在、组件签名与调用点、是否复用既有实现、安全面、资产同步、迁移对账、每个 dp 是否统一走 token、超范围改动。
 4. **预演冲突**：`git merge-tree --write-tree --name-only main pr-<N>`。
 5. **临时分支合并**：`git switch -c merge/pr-<N> main` → `git merge --no-ff pr-<N> -m "Merge pull request #<N> from <owner>/<head-branch>" -m "<PR 标题>"`。
-6. **冒烟 + 真机验证**：动了 UI 或交互的 PR 必须发 APK 给用户真机验证，通过才继续。
-7. **单测 + 推送**：`git switch main && git merge --ff-only merge/pr-<N> && git push origin main`。
+6. **冒烟 + 真机验证**：动了 UI 或交互的 PR 必须先冒烟出包、把 APK 发给用户真机验证，**用户确认无误后才继续**，不要跳过真机直接合。
+7. **推送（无本地闸门）**：单测与迁移对账交给云端 PR CI（推 PR 即自动触发，失败会通知，本地不重复跑）。审核/补充修正 → `git push origin <该 PR 的 head 分支>` 追加到同一 PR；确认 CI 绿 + 用户真机通过后，再 `git switch main && git merge --ff-only merge/pr-<N> && git push origin main`。
 8. **清理**：`git branch -d merge/pr-<N> pr-<N>`。不动 stash 与未跟踪文件。
 
 **必须停下来问用户**：本地 `main` 有未推提交／预演有冲突／PR 含数据库迁移或构建、CI、签名改动／审查发现超范围改动或质量问题／编译或单测失败。
