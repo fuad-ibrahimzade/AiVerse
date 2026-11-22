@@ -356,12 +356,23 @@ Room：`feature/agent/data/local/database/AgentDatabase.kt` + 各 DAO。迁移�
 - **别用聚合任务做日常验证**：`assembleDebug` / `assembleRelease` / `test` / `build` 都会跨三个 flavor 全跑，耗时极长。
 - 容器内耗时构建必须用 `terminal` + `notify=true`，不要反复读输出、不要轮询。
 
-### 8.2 分支工作流
+### 8.2 分支工作流（硬规则：功能一律走 PR，禁止直推 main）
 
-- **新功能 / 复杂多文件改动 / 架构重构** → 开 `feat/xxx` 或 `refactor/xxx`，动手前先定好分支名，验证通过后合回 `main`。
-- **日常 bug 修复 / 补单测 / CI 与构建配置 / 纯文档 / 资源文案** → 直接提交 `main`。
-- **预览版热修复** → 从该 RC Tag 拉 `hotfix/xxx`。
-- **合并后清理分支**：`git branch --merged main` 确认后 `git branch -d <branch>`；推送过的同步 `git push origin --delete <branch>`。
+- **所有功能 / UI / 多文件改动 / 架构重构 / 补单测** → **禁止直接 `git push origin main`**。必须：从最新 `origin/main` 拉一个**独立分支**（命名 `feat/xxx` / `refactor/xxx` / `fix/xxx`，一个功能或一批相关改动一个分支）→ 提交 → `git push` → 从该分支开 PR 合回 `main`。
+- **分支命名**：动手前先定分支名，`feat/<模块>-<简述>` 风格；不要把不相关的改动堆进同一个分支。
+- **日常 bug 修复 / CI 与构建配置 / 纯文档 / 资源文案** → 同样优先走独立分支 + PR；仅**紧急线上修复**（hotfix）且经用户同意才可直推 `main`。
+- **预览版热修复** → 从该 RC Tag 拉 `hotfix/xxx`，仍走 PR。
+- **分支白名单（清理时永不列为可删候选）**，分两类：
+  - **永久白名单（仅这两个，永不删）**：`main`（主干）、`data`。无论何时都不参与清理。
+  - **临时白名单（仅一个：当前刚创建的工作分支）**：就是当下正在干活的那个功能分支（例如本轮的 `pr`）。干活期间受保护不删，但 **PR 合并回 `main` 后它就完成使命，应在清理时删掉**（删前仍走 8.2.1 问用户）。
+  - 除上述两类（最多三个分支）外，**其余所有分支一律视为可清理候选**，清理时全部列出问用户。
+
+### 8.2.1 分支清理（删分支前必问用户，多选）
+
+- 在**创建新功能分支前**（推荐时机，顺手清理旧分支）或**PR 合并后**，若存在可清理分支，**必须先询问用户**，不得自动删除。
+- **罗列候选**：`git branch --format='%(refname:short)'` 与 `git branch -r --format='%(refname:short)'`，**排除**：永久白名单 `main` / `data`、当前临时工作分支、当前所在分支、`HEAD` 指针、`upstream/*`，以及仍被开放 PR / 未合并工作占用的分支，把**剩下的分支全部列出**。
+- **用多选让用户挑要删哪些**（`askUserQuestion`，`multiSelect: true`），列出每个分支的最近提交/用途便于判断。未选中的**一律不删**。
+- 本地与远程同步清理：选中后 `git branch -d <branch>` + `git push origin --delete <branch>`；仅合并过的分支用 `-d`，未合并需 `-D` 前先向用户确认。
 
 ### 8.3 PR 合并流程
 
