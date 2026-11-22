@@ -50,7 +50,7 @@ import com.aiverse.core.theme.LocalUIDensityTokens
 import com.aiverse.core.theme.Radius
 import com.aiverse.core.theme.Spacing
 import com.aiverse.core.theme.glassBorderOr
-import com.aiverse.core.theme.glassOr
+import com.aiverse.core.theme.chatPanelGlassOr
 import com.aiverse.core.theme.semanticColors
 import com.aiverse.core.ui.ExpandableChevronIcon
 import com.aiverse.core.ui.PressableSurface
@@ -300,7 +300,7 @@ private fun SubAgentDispatchItemCard(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radius.sm),
-        color = glassOr(MaterialTheme.semanticColors.surfaceGlass, MaterialTheme.colorScheme.surface),
+        color = chatPanelGlassOr(MaterialTheme.semanticColors.surfaceGlass),
         border = BorderStroke(1.dp, glassBorderOr(MaterialTheme.semanticColors.surfaceGlassBorder))
     ) {
         Column(

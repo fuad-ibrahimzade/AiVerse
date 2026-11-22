@@ -80,7 +80,7 @@ import androidx.compose.ui.unit.dp
 import com.aiverse.core.theme.LocalHyperOSStyle
 import com.aiverse.core.theme.LocalSurfaceGlassStyle
 import com.aiverse.core.theme.LocalUIDensityTokens
-import com.aiverse.core.theme.glassOr
+import com.aiverse.core.theme.chatPanelGlassOr
 import java.util.Calendar
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
@@ -173,7 +173,7 @@ internal fun ChatHeader(
     onRunPluginAction: (PluginUiEntry) -> Unit = {}
 ) {
     Surface(
-        color = glassOr(MaterialTheme.semanticColors.surfaceGlass, MaterialTheme.colorScheme.background),
+        color = chatPanelGlassOr(MaterialTheme.semanticColors.surfaceGlass),
         border = if (LocalSurfaceGlassStyle.current) {
             BorderStroke(1.dp, MaterialTheme.semanticColors.surfaceGlassBorder)
         } else {

@@ -335,6 +335,23 @@ fun glassOr(glass: Color, fallback: Color): Color =
 fun chatPanelSurface(): Color =
     MaterialTheme.colorScheme.surface.copy(alpha = LocalChatPanelOpacity.current.coerceAtLeast(0.35f))
 
+/**
+ * 聊天外壳面板底色：玻璃档与其它档**都跟随**聊天面板透明系数（issue #193）。
+ *
+ * 与 [glassOr] 的区别：[glassOr] 只在玻璃档应用系数、其它档直接回退实色，适用于设置页等通用表面；
+ * 本函数专供聊天页悬浮面板（顶栏、输入框、待办栏、数据栏等），让透明系数不区分主题：
+ * - 玻璃档：沿用 [glassOr] 玻璃分支（[glass] + 更激进的 5% 下限），保持玻璃档现有磨砂观感不变；
+ * - 其它档：退化为 [chatPanelSurface]（surface + 35% 可读性下限），修复默认主题下面板不透明。
+ */
+@Composable
+fun chatPanelGlassOr(glass: Color): Color =
+    if (LocalSurfaceGlassStyle.current) {
+        val factor = LocalChatPanelOpacity.current.coerceIn(0.05f, 1f)
+        glass.copy(alpha = (glass.alpha * factor).coerceIn(0f, 1f))
+    } else {
+        chatPanelSurface()
+    }
+
 /** 玻璃档返回描边色，其它档返回透明（等效无边框，回到改动前的无描边状态）。 */
 @Composable
 fun glassBorderOr(glass: Color): Color =

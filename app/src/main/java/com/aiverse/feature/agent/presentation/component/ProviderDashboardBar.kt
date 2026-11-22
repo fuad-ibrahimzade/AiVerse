@@ -50,7 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aiverse.core.theme.Radius
 import com.aiverse.core.theme.Spacing
-import com.aiverse.core.theme.glassOr
+import com.aiverse.core.theme.chatPanelGlassOr
 import com.aiverse.core.theme.semanticColors
 import com.aiverse.R
 import com.aiverse.feature.settings.domain.model.AIProviderConfig
@@ -86,7 +86,7 @@ fun ProviderDashboardBar(
     // 上报展开状态给外层，供叠加面板联动折叠
     LaunchedEffect(effectiveExpanded) { onExpandedChange(effectiveExpanded) }
 
-    val cardBgColor = glassOr(MaterialTheme.semanticColors.surfaceGlass, MaterialTheme.colorScheme.surface)
+    val cardBgColor = chatPanelGlassOr(MaterialTheme.semanticColors.surfaceGlass)
     val borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)
 
     Surface(

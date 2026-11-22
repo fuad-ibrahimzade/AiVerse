@@ -100,7 +100,7 @@ import com.aiverse.core.theme.LocalHyperOSStyle
 import com.aiverse.core.theme.LocalInputFontSizeSp
 import com.aiverse.core.theme.LocalUIDensityTokens
 import com.aiverse.core.theme.glassBorderOr
-import com.aiverse.core.theme.glassOr
+import com.aiverse.core.theme.chatPanelGlassOr
 import com.aiverse.core.theme.LocalChatPanelOpacity
 import com.aiverse.core.theme.chatPanelSurface
 import com.aiverse.core.ui.rememberImeBottomInset
@@ -570,7 +570,7 @@ internal fun ChatInputBar(
                         }
                     )
                     .clip(inputShape)
-                    .background(glassOr(MaterialTheme.semanticColors.surfaceGlass, MaterialTheme.colorScheme.surface))
+                    .background(chatPanelGlassOr(MaterialTheme.semanticColors.surfaceGlass))
                     .border(
                         if (hyperOS) 0.5.dp else 1.dp,
                         if (hyperOS) MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
@@ -1492,7 +1492,7 @@ internal fun ErrorBubble(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = Spacing.xs),
-        color = glassOr(MaterialTheme.semanticColors.surfaceGlass, MaterialTheme.colorScheme.surface),
+        color = chatPanelGlassOr(MaterialTheme.semanticColors.surfaceGlass),
         shape = RoundedCornerShape(Radius.md),
         border = BorderStroke(t.scale(1), glassBorderOr(MaterialTheme.semanticColors.surfaceGlassBorder))
     ) {

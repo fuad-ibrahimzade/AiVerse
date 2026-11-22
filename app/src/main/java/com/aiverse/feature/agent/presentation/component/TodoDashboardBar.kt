@@ -45,7 +45,7 @@ import com.aiverse.core.theme.Radius
 import com.aiverse.core.theme.LocalUIDensityTokens
 import com.aiverse.core.theme.LocalHyperOSStyle
 import com.aiverse.core.theme.Spacing
-import com.aiverse.core.theme.glassOr
+import com.aiverse.core.theme.chatPanelGlassOr
 import com.aiverse.core.theme.semanticColors
 import com.aiverse.feature.agent.domain.model.TodoItem
 import com.aiverse.feature.agent.domain.model.TodoStatus
@@ -106,7 +106,7 @@ fun TodoDashboardBar(
     }
     if (dismissed) return
 
-    val cardBgColor = glassOr(MaterialTheme.semanticColors.surfaceGlass, MaterialTheme.colorScheme.surface)
+    val cardBgColor = chatPanelGlassOr(MaterialTheme.semanticColors.surfaceGlass)
     // 与输入框保持一致：HyperOS 风格下用 0.5dp + outline 55% 的细描边，普通主题仍是 1dp + outlineVariant。
     val hyperOS = LocalHyperOSStyle.current
     val borderWidth = if (hyperOS) 0.5.dp else 1.dp

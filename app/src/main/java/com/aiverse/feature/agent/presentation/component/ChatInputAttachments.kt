@@ -53,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -67,6 +68,7 @@ import androidx.compose.ui.zIndex
 import com.aiverse.R
 import com.aiverse.core.theme.Radius
 import com.aiverse.core.theme.Spacing
+import com.aiverse.core.theme.chatPanelSurface
 import com.aiverse.core.ui.LocalImageViewer
 import com.aiverse.core.ui.LocalMediaViewer
 import com.aiverse.feature.agent.presentation.component.LocalChatFileAccess
@@ -124,7 +126,7 @@ internal fun QueuedRequestPanel(
             .fillMaxWidth()
             .padding(bottom = Spacing.sm),
         shape = RoundedCornerShape(Radius.lg),
-        color = MaterialTheme.colorScheme.surface,
+        color = chatPanelSurface(),
         border = androidx.compose.foundation.BorderStroke(
             1.dp, MaterialTheme.colorScheme.outlineVariant
         )
@@ -178,7 +180,7 @@ internal fun QueuedRequestPanel(
                                 .clip(RoundedCornerShape(Radius.sm))
                                 .background(
                                     if (isDragging) MaterialTheme.colorScheme.surfaceVariant
-                                    else MaterialTheme.colorScheme.surface
+                                    else Color.Transparent
                                 )
                                 .padding(horizontal = Spacing.md, vertical = Spacing.xs),
                             verticalAlignment = Alignment.CenterVertically

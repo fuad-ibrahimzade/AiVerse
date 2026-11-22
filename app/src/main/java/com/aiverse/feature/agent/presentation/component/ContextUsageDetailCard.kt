@@ -34,7 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aiverse.core.theme.Radius
 import com.aiverse.core.theme.Spacing
-import com.aiverse.core.theme.glassOr
+import com.aiverse.core.theme.chatPanelGlassOr
 import com.aiverse.core.theme.semanticColors
 import com.aiverse.R
 import compose.icons.FeatherIcons
@@ -61,7 +61,7 @@ internal fun ContextUsageDetailCard(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radius.lg),
-        color = glassOr(MaterialTheme.semanticColors.surfaceGlass, MaterialTheme.colorScheme.surface)
+        color = chatPanelGlassOr(MaterialTheme.semanticColors.surfaceGlass)
     ) {
         // 浮窗内不再放「收起」入口：点 × 或再点圆环即可关闭，避免多一个把卡片缩成一行飘在半空的出口。
         Column(modifier = Modifier.padding(Spacing.sm)) {
