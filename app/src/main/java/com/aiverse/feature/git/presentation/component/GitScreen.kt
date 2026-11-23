@@ -205,6 +205,9 @@ fun GitScreen(
             onReopenPull = viewModel::reopenPullRequest,
             onMergePull = viewModel::mergePullRequest,
             onAskAgent = onAskAgent,
+            onFileDiff = { path ->
+                state.pullDetail?.let { viewModel.loadPullRequestFileDiff(it.head.sha, it.base.sha, path) }
+            },
             toastMessage = state.toast,
             onToastConsumed = viewModel::consumeToast
         )

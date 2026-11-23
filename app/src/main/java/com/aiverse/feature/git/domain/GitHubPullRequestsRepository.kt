@@ -13,7 +13,9 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,6 +39,8 @@ class GitHubPullRequestsRepository @Inject constructor(
         const val PER_PAGE = 100
         /** CI 检查摘要截断长度：避免把整段日志塞进列表/工具结果。 */
         const val MAX_SUMMARY_CHARS = 300
+        /** 按 SHA 取文件内容时的字节上限：超过则降级为「文件过大」，不拉全量文本。 */
+        const val MAX_RAW_FILE_BYTES = 2L * 1024 * 1024
         val VALID_STATES = setOf("open", "closed", "all")
     }
 
@@ -90,7 +94,7 @@ class GitHubPullRequestsRepository @Inject constructor(
                     ?: CheckRunsResponse()
                 val runs = runsResponse.checkRuns.map { dto ->
                     GitHubCheckRun(
-                        name = dto.name,
+                        name = dto.name.ifBlank { dto.output?.title ?: "" },
                         status = dto.status,
                         conclusion = dto.conclusion,
                         htmlUrl = dto.htmlUrl,
@@ -121,6 +125,13 @@ class GitHubPullRequestsRepository @Inject constructor(
                             name = status.context,
                             status = "completed",
                             conclusion = "failure",
+                            htmlUrl = status.targetUrl,
+                            summary = status.description
+                        )
+                        "neutral" -> GitHubCheckRun(
+                            name = status.context,
+                            status = "completed",
+                            conclusion = "success",
                             htmlUrl = status.targetUrl,
                             summary = status.description
                         )
@@ -260,6 +271,64 @@ class GitHubPullRequestsRepository @Inject constructor(
                 val body = execute(url, target.token)
                 val type = object : TypeToken<List<GitHubPullRequestFile>>() {}.type
                 Result.success(gson.fromJson<List<GitHubPullRequestFile>>(body, type) ?: emptyList())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    /**
+     * 取某 SHA 下某文件路径的原始文本内容，作为 PR 文件 diff 的 contentProvider。
+     * 用 contents API + `Accept: application/vnd.github.raw` 拿原始文本（避开 execute 的 JSON Accept）。
+     * 文件在该 SHA 下不存在（404）时返回空串，供 computeDiff 按全新增/全删除呈现；
+     * 超过 [MAX_RAW_FILE_BYTES] 抛 [GitOutputTooLargeException]，走「文件过大」降级。
+     */
+    suspend fun fetchFileContentAt(sha: String, path: String): Result<String> =
+        withContext(Dispatchers.IO) {
+            try {
+                if (sha.isBlank() || path.isBlank()) return@withContext Result.success("")
+                val target = resolveTarget() ?: return@withContext errorResult()
+                // 用 HttpUrl.Builder 逐段编码 path，保留「/」分隔符；OkHttp 按 RFC 3986 编码，
+                // 空格→%20、#→%23、中文→%XX，避开 URLEncoder 的 form 语义（空格→+）导致取不到。
+                val url = HttpUrl.Builder()
+                    .scheme("https")
+                    .host("api.github.com")
+                    .addPathSegment("repos")
+                    .addPathSegment(target.owner)
+                    .addPathSegment(target.repo)
+                    .addPathSegment("contents")
+                    .addPathSegment(path)
+                    .addQueryParameter("ref", sha)
+                    .build()
+                val request = Request.Builder()
+                    .url(url)
+                    .header("Accept", "application/vnd.github.raw")
+                    .header("Authorization", "Bearer ${target.token}")
+                    .get()
+                    .build()
+                client.newCall(request).execute().use { resp ->
+                    when {
+                        resp.code == 404 -> Result.success("")
+                        !resp.isSuccessful -> throw GitHubPullRequestsException(
+                            "HTTP ${resp.code} fetching path at $sha"
+                        )
+                        else -> {
+                            // 流式读取并在累计超过上限时立刻中断，不整段读入内存；
+                            // 不依赖 content-length（gzip 透传时常为 -1）。
+                            val body = resp.body ?: return@use Result.success("")
+                            val buffer = okio.Buffer()
+                            body.source().use { source ->
+                                while (true) {
+                                    val read = source.read(buffer, MAX_RAW_FILE_BYTES + 1 - buffer.size)
+                                    if (read == -1L) break
+                                    if (buffer.size > MAX_RAW_FILE_BYTES) throw GitOutputTooLargeException()
+                                }
+                            }
+                            Result.success(buffer.readUtf8())
+                        }
+                    }
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
