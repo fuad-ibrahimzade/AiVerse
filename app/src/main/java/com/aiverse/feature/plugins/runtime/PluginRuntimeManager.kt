@@ -358,6 +358,20 @@ class PluginRuntimeManager @Inject constructor(
                     (params["title"] as? JsonPrimitive)?.contentOrNull
                 )
             }
+            "host.share.image" -> hostCall {
+                val target = paths.resolveLocalImage(
+                    PluginHostPaths.requireString(params, "path"),
+                    PluginSystemService.MAX_SHARE_IMAGE_BYTES
+                )
+                systemService.shareImage(pluginId, target, (params["title"] as? JsonPrimitive)?.contentOrNull)
+            }
+            "host.share.file" -> hostCall {
+                val target = paths.resolveLocalFile(
+                    PluginHostPaths.requireString(params, "path"),
+                    PluginSystemService.MAX_SHARE_IMAGE_BYTES
+                )
+                systemService.shareFile(pluginId, target, (params["title"] as? JsonPrimitive)?.contentOrNull)
+            }
             "host.ui.openUrl" -> hostCall {
                 systemService.openUrl(pluginId, PluginHostPaths.requireString(params, "url"))
             }
