@@ -1888,6 +1888,10 @@ private fun FileBrowserTab(
                 exportPendingPaths = setOf(node.path)
                 exportLauncher.launch("export_${node.entry.name}.zip")
             },
+            onSendToChat = {
+                menuNode = null
+                onSendSelectionToChat(setOf(node.path))
+            },
             onDismiss = { menuNode = null }
         )
     }
@@ -2080,6 +2084,7 @@ private fun FileTreeActionSheet(
     onPasteHere: () -> Unit,
     onShare: () -> Unit,
     onExport: () -> Unit,
+    onSendToChat: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AdaptiveModalBottomSheet(
@@ -2161,6 +2166,12 @@ private fun FileTreeActionSheet(
                     label = stringResource(R.string.file_browser_export),
                     tint = MaterialTheme.colorScheme.onSurface,
                     onClick = onExport
+                )
+                SheetActionRow(
+                    icon = FeatherIcons.Send,
+                    label = stringResource(R.string.file_browser_send_to_chat),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    onClick = onSendToChat
                 )
                 SheetActionRow(
                     icon = FeatherIcons.Copy,

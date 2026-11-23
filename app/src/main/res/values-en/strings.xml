@@ -926,6 +926,7 @@
     <string name="common_name">Name</string>
     <string name="common_image_preview">Image Preview</string>
     <string name="common_image_load_failed">Failed to load image; the file may have been moved or deleted</string>
+    <string name="viewer_motion_photo">Motion Photo</string>
     <string name="common_play">Play</string>
     <string name="common_pause">Pause</string>
     <string name="common_media_load_failed">Failed to play this file; it may have been moved or deleted</string>

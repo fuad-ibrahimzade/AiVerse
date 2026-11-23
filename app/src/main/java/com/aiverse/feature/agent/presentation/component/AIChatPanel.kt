@@ -2654,7 +2654,7 @@ fun AIChatPanel(
                 onDismiss = { attachmentSheet = null }
             )
         }
-        ImageViewerHost(state = imageViewerState, load = chatImageLoad)
+        ImageViewerHost(state = imageViewerState, load = chatImageLoad, peek = motionAwarePeek(viewModel.fileAccess))
         MediaPlayerHost(state = mediaViewerState, resolve = mediaFileResolve)
         PdfViewerHost(state = pdfViewerState, resolve = pdfFileResolve)
     }

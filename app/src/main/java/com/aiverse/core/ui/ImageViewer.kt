@@ -17,10 +17,12 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -44,6 +46,8 @@ import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -55,7 +59,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
+import coil.compose.rememberAsyncImagePainter
 import com.aiverse.R
+import com.aiverse.core.theme.Radius
 import com.aiverse.core.theme.Spacing
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.Image
@@ -136,7 +142,24 @@ fun rememberImageViewerState(): ImageViewerState = remember { ImageViewerState()
 private sealed interface ViewerLoad {
     object Loading : ViewerLoad
     object Failed : ViewerLoad
-    data class Ready(val bitmap: ImageBitmap) : ViewerLoad
+    data class Ready(val bitmap: ImageBitmap, val isMotionPhoto: Boolean = false) : ViewerLoad
+
+    /** 动图（GIF / 动图 WebP）：交 Coil [androidx.compose.ui.graphics.painter.Painter] 逐帧播放。 */
+    data class ReadyAnimated(val painter: Painter) : ViewerLoad
+}
+
+/**
+ * 加载前的快速探查结果，用于把动图与动态照片从静态位图里分出来。
+ *
+ * 探查只在宿主提供了 [ImageViewerHost.peek] 时发生；默认 null 表示“无从判断”，
+ * 直接走原有静态解码链路，行为与引入本功能前一致。
+ */
+sealed interface ViewerPeek {
+    /** 命中动图，[model] 是已落到宿主的本地文件 / 远程 URL / base64，交 Coil 逐帧播放。 */
+    data class Animated(val model: Any) : ViewerPeek
+
+    /** 静态图，但带动态照片（Motion Photo）标记，查看器会打角标。 */
+    object StaticMotionPhoto : ViewerPeek
 }
 
 /**
@@ -149,17 +172,53 @@ private sealed interface ViewerLoad {
  *    不用去推敲它们的相对顺序。
  *
  * @param load 把 [ImageSource] 解成位图；实现方自行切 IO 线程，返回 null 表示这个来源拿不到。
+ * @param peek 加载前的快速探查（可选）。实现方自行切 IO，命中动图返回 [ViewerPeek.Animated]
+ *   交 Coil 逐帧播放，命中动态照片返回 [ViewerPeek.StaticMotionPhoto] 好打角标，其余返回 null
+ *   走原有静态解码。不传则完全保持旧行为。
  */
 @Composable
 fun ImageViewerHost(
     state: ImageViewerState,
-    load: suspend (ImageSource) -> ImageBitmap?
+    load: suspend (ImageSource) -> ImageBitmap?,
+    peek: (suspend (ImageSource) -> ViewerPeek?)? = null
 ) {
     val request = state.request ?: return
-    val loadState by produceState<ViewerLoad>(ViewerLoad.Loading, request, load) {
-        value = request.sources.firstNotNullOfOrNull { load(it) }
-            ?.let { ViewerLoad.Ready(it) }
-            ?: ViewerLoad.Failed
+    // 先探查（切 IO，见 peek 实现方）：命中动图就交 Coil 逐帧播放（静态解码链会把动图压成首帧），
+    // 动态照片则记下标记好打角标；都不是再退回原有静态解码。rememberAsyncImagePainter 必须在组合里调，
+    // 所以把探查结果（稳定值类型）先算出来，再据此分支创建 painter。
+    val probed by produceState<ViewerPeek?>(null, request, peek) {
+        value = peek?.let { request.sources.firstNotNullOfOrNull { source -> it(source) } }
+    }
+    // 探查是否已跑完：probed 初始为 null，与“探查完但既非动图也非动态照片”无法区分，
+    // 用这个标记避免静态图在解码完成前被误判成 Failed。
+    var peeked by remember(request, peek) { mutableStateOf(false) }
+    SideEffect { if (probed != null || peek != null) peeked = true }
+    val loadState = when (val peekResult = probed) {
+        is ViewerPeek.Animated -> {
+            // 动图走 Coil Painter：Image 绘制时 Coil 会自动逐帧推进（同正文动图那套 coil-gif 链路）。
+            val animatedPainter = rememberAsyncImagePainter(model = peekResult.model)
+            ViewerLoad.ReadyAnimated(animatedPainter)
+        }
+
+        else -> {
+            val bitmap by produceState<ImageBitmap?>(
+                null,
+                request,
+                load,
+                peekResult is ViewerPeek.StaticMotionPhoto
+            ) {
+                value = request.sources.firstNotNullOfOrNull { load(it) }
+            }
+            val decoded = bitmap
+            when {
+                decoded != null -> ViewerLoad.Ready(
+                    decoded,
+                    isMotionPhoto = peekResult is ViewerPeek.StaticMotionPhoto
+                )
+                !peeked -> ViewerLoad.Loading
+                else -> ViewerLoad.Failed
+            }
+        }
     }
 
     Dialog(
@@ -211,6 +270,25 @@ fun ImageViewerHost(
                         .fillMaxSize()
                         .windowInsetsPadding(WindowInsets.safeDrawing)
                 )
+
+                is ViewerLoad.ReadyAnimated -> ZoomableImage(
+                    painter = loaded.painter,
+                    contentDescription = request.title.ifBlank { stringResource(R.string.common_image_preview) },
+                    onTap = state::dismiss,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                )
+            }
+
+            // 动态照片（Motion Photo）角标：至少标识，与右上角 × 对称放在左上角。
+            if (loadState is ViewerLoad.Ready && loadState.isMotionPhoto) {
+                MotionPhotoBadge(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .systemBarsPadding()
+                        .padding(Spacing.sm)
+                )
             }
 
             IconButton(
@@ -228,6 +306,23 @@ fun ImageViewerHost(
                 )
             }
         }
+    }
+}
+
+/** 动态照片（Motion Photo）角标：半透明背板 + 白字，不写死颜色魔数，圆角走 [Radius.sm]。 */
+@Composable
+private fun MotionPhotoBadge(modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(Radius.sm),
+        color = Color.Black.copy(alpha = BADGE_BACKDROP_ALPHA),
+        contentColor = Color.White
+    ) {
+        Text(
+            text = stringResource(R.string.viewer_motion_photo),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs)
+        )
     }
 }
 
@@ -254,6 +349,9 @@ private fun LoadFailedPlaceholder(modifier: Modifier = Modifier) {
 
 /** 背板不透明度。Compose 的 Dialog 本身还会给 window 加一层 dim，这里不必给满。 */
 private const val BACKDROP_ALPHA = 0.92f
+
+/** 动态照片角标背板不透明度：比背板略深，让白字在亮图上也读得清。 */
+private const val BADGE_BACKDROP_ALPHA = 0.6f
 
 private const val MIN_SCALE = 1f
 
@@ -345,13 +443,46 @@ fun ZoomableImage(
     modifier: Modifier = Modifier,
     onBackgroundTap: (() -> Unit)? = null
 ) {
+    // 包成 BitmapPainter 复用同一套手势 / 缩放内核：intrinsicSize 就是位图像素尺寸，
+    // 行为与直接用 bitmap 渲染完全一致（PDF 查看器仍走这个入口）。
+    ZoomableImage(
+        painter = BitmapPainter(bitmap),
+        contentDescription = contentDescription,
+        onTap = onTap,
+        modifier = modifier,
+        onBackgroundTap = onBackgroundTap
+    )
+}
+
+/**
+ * [ZoomableImage] 的 Painter 版本：供动图（GIF / 动图 WebP）逐帧播放使用。
+ *
+ * 渲染层换成 Painter，缩放 / 位移 / 双击 / 单击手势逻辑与位图版完全共用；尺寸按
+ * [Painter.intrinsicSize] 算，动图未知尺寸时退化到容器尺寸（Fit 充满）。
+ */
+@Composable
+fun ZoomableImage(
+    painter: Painter,
+    contentDescription: String?,
+    onTap: () -> Unit,
+    modifier: Modifier = Modifier,
+    onBackgroundTap: (() -> Unit)? = null
+) {
     var container by remember { mutableStateOf(IntSize.Zero) }
     var scale by remember { mutableFloatStateOf(MIN_SCALE) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var zoomAnim by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
 
-    val imageSize = remember(bitmap) { IntSize(bitmap.width, bitmap.height) }
+    val imageSize = remember(painter) {
+        val s = painter.intrinsicSize
+        // 动图可能报未就绪 / INFINITE（宽高 <= 0，已覆盖 Size.Unspecified 的 -1），此时交给容器尺寸 Fit 充满。
+        if (s.width > 0f && s.height > 0f) {
+            IntSize(s.width.toInt(), s.height.toInt())
+        } else {
+            IntSize.Zero
+        }
+    }
     val content = remember(imageSize, container) { fitInside(imageSize, container) }
     val center = remember(container) { Offset(container.width / 2f, container.height / 2f) }
     // 上限取「回到 1:1 解码像素」，否则长截图 Fit 之后缩得极小，5 倍也看不清字
@@ -426,7 +557,7 @@ fun ZoomableImage(
             }
     ) {
         ComposeImage(
-            bitmap = bitmap,
+            painter = painter,
             contentDescription = contentDescription,
             contentScale = ContentScale.Fit,
             modifier = Modifier
