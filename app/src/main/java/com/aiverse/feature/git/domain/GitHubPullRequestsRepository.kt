@@ -13,9 +13,9 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import java.net.URLEncoder
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -289,10 +289,18 @@ class GitHubPullRequestsRepository @Inject constructor(
             try {
                 if (sha.isBlank() || path.isBlank()) return@withContext Result.success("")
                 val target = resolveTarget() ?: return@withContext errorResult()
-                // contents API 的 path 段需逐段编码并保留「/」分隔符，否则带空格/#/中文的路径取不到。
-                val encodedPath = path.split('/').joinToString("/") { URLEncoder.encode(it, "UTF-8") }
-                val url = "$API_BASE/${target.owner}/${target.repo}/contents/$encodedPath" +
-                    "?ref=${URLEncoder.encode(sha, "UTF-8")}"
+                // 用 HttpUrl.Builder 逐段编码 path，保留「/」分隔符；OkHttp 按 RFC 3986 编码，
+                // 空格→%20、#→%23、中文→%XX，避开 URLEncoder 的 form 语义（空格→+）导致取不到。
+                val url = HttpUrl.Builder()
+                    .scheme("https")
+                    .host("api.github.com")
+                    .addPathSegment("repos")
+                    .addPathSegment(target.owner)
+                    .addPathSegment(target.repo)
+                    .addPathSegment("contents")
+                    .addPathSegment(path)
+                    .addQueryParameter("ref", sha)
+                    .build()
                 val request = Request.Builder()
                     .url(url)
                     .header("Accept", "application/vnd.github.raw")
@@ -303,15 +311,21 @@ class GitHubPullRequestsRepository @Inject constructor(
                     when {
                         resp.code == 404 -> Result.success("")
                         !resp.isSuccessful -> throw GitHubPullRequestsException(
-                            "HTTP ${resp.code} fetching $path at $sha"
+                            "HTTP ${resp.code} fetching path at $sha"
                         )
                         else -> {
-                            if ((resp.body?.contentLength() ?: -1L) > MAX_RAW_FILE_BYTES) {
-                                throw GitOutputTooLargeException()
+                            // 流式读取并在累计超过上限时立刻中断，不整段读入内存；
+                            // 不依赖 content-length（gzip 透传时常为 -1）。
+                            val body = resp.body ?: return@use Result.success("")
+                            val buffer = okio.Buffer()
+                            body.source().use { source ->
+                                while (true) {
+                                    val read = source.read(buffer, MAX_RAW_FILE_BYTES + 1 - buffer.size)
+                                    if (read == -1L) break
+                                    if (buffer.size > MAX_RAW_FILE_BYTES) throw GitOutputTooLargeException()
+                                }
                             }
-                            val bytes = resp.body?.bytes() ?: ByteArray(0)
-                            if (bytes.size > MAX_RAW_FILE_BYTES) throw GitOutputTooLargeException()
-                            Result.success(String(bytes))
+                            Result.success(buffer.readUtf8())
                         }
                     }
                 }
