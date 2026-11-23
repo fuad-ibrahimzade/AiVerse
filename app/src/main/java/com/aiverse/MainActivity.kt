@@ -121,6 +121,7 @@ import com.aiverse.feature.agent.presentation.component.AIChatPanel
 import com.aiverse.feature.agent.presentation.component.ChatDrawerContent
 import com.aiverse.feature.agent.presentation.component.LocalChatAnimationsEnabled
 import com.aiverse.feature.agent.presentation.component.chatImageLoader
+import com.aiverse.feature.agent.presentation.component.motionAwarePeek
 import com.aiverse.feature.agent.presentation.component.mediaFileResolver
 import com.aiverse.feature.agent.presentation.component.openSentAttachment
 import com.aiverse.feature.launch.presentation.LaunchGate
@@ -1316,7 +1317,7 @@ fun AppNavigation(
     ) {
     Box(modifier = Modifier.fillMaxSize()) {
     // 文件树里点开的图片/音视频走这个查看器/播放器；聊天面板自带一套，两层互不影响。
-    ImageViewerHost(state = drawerImageViewerState, load = drawerImageLoad)
+    ImageViewerHost(state = drawerImageViewerState, load = drawerImageLoad, peek = motionAwarePeek(agentViewModel.fileAccess))
     MediaPlayerHost(state = drawerMediaViewerState, resolve = drawerMediaResolve)
     PdfViewerHost(state = drawerPdfViewerState, resolve = drawerPdfResolve)
     if (expanded) {

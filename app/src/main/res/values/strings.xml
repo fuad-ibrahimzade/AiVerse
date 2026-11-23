@@ -926,6 +926,7 @@
     <string name="common_name">名称</string>
     <string name="common_image_preview">图片预览</string>
     <string name="common_image_load_failed">图片加载失败，文件可能已被移动或删除</string>
+    <string name="viewer_motion_photo">动态照片</string>
     <string name="common_play">播放</string>
     <string name="common_pause">暂停</string>
     <string name="common_media_load_failed">无法播放该文件，文件可能已被移动或删除</string>
