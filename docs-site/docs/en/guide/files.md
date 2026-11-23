@@ -61,9 +61,10 @@ A remote SSH workspace cannot watch for changes on the remote file system and **
 
 The name can only be a single entry name: if it contains `/`, `\`, or is `.` or `..`, the confirm button is disabled — this prevents accidentally creating in the wrong directory. If an entry with the same name already exists, or the directory is not writable, a failure message is shown and the original file is not overwritten.
 
-**Long-press a file or subdirectory row** to rename and delete (both root nodes can only create):
+**Long-press a file or subdirectory row** to rename, send to chat, and delete (both root nodes can only create):
 
 -   **Rename**: only changes the name within the same directory; it does not move across directories.
+-   **Send to chat**: appends the file as an `@relative/path` reference into the current session's input box and automatically closes the sidebar; no need to enter multi-select mode first. This item is not shown for entries outside the workspace (e.g., local folders).
 -   **Delete**: a file is deleted directly; a folder is deleted recursively along with everything inside it, so a confirmation dialog appears first.
 
 Deletion Cannot Be Undone
