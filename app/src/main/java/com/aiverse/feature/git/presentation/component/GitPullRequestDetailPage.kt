@@ -94,6 +94,7 @@ internal fun GitPullRequestDetailPage(
     onReopenPull: () -> Unit = {},
     onMergePull: (String) -> Unit = {},
     onAskAgent: (String) -> Unit = {},
+    onFileDiff: (String) -> Unit = {},
     toastMessage: String? = null,
     onToastConsumed: () -> Unit = {}
 ) {
@@ -171,7 +172,8 @@ internal fun GitPullRequestDetailPage(
                 onClosePull = onClosePull,
                 onReopenPull = onReopenPull,
                 onMergePull = onMergePull,
-                onAskAgent = onAskAgent
+                onAskAgent = onAskAgent,
+                onFileDiff = onFileDiff
             )
         }
     }
@@ -196,7 +198,8 @@ private fun PullRequestDetailContent(
     onClosePull: () -> Unit,
     onReopenPull: () -> Unit,
     onMergePull: (String) -> Unit,
-    onAskAgent: (String) -> Unit
+    onAskAgent: (String) -> Unit,
+    onFileDiff: (String) -> Unit
 ) {
     val clipboard = LocalClipboard.current
     val uriHandler = LocalUriHandler.current
@@ -429,6 +432,7 @@ private fun PullRequestDetailContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clickable { onFileDiff(file.filename) }
                         .padding(vertical = Spacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -448,9 +452,15 @@ private fun PullRequestDetailContent(
                     }
                     Spacer(Modifier.width(Spacing.sm))
                     Text(
-                        text = "+${file.additions} -${file.deletions}",
+                        text = "+${file.additions}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = CiSuccessColor
+                    )
+                    Spacer(Modifier.width(Spacing.xs))
+                    Text(
+                        text = "-${file.deletions}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CiFailureColor
                     )
                 }
             }

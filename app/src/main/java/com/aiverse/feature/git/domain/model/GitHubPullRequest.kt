@@ -78,7 +78,11 @@ data class GitHubCheckSummary(
     /** 旧版 commit status 的整体状态；没有 statuses 时为 null。 */
     val combinedState: String? = null
 ) {
-    /** 整体状态：failure / pending / success / none。 */
+    /**
+     * 整体状态：failure / pending / success / none。
+     * failure 优先于 pending：cancelled / timed_out 在 [checkOutcome] 已归为 failure，
+     * 因此已取消的检查不会被同批仍在跑的 pending 掩盖成「进行中」。
+     */
     val state: String get() = when {
         failure > 0 -> "failure"
         pending > 0 -> "pending"

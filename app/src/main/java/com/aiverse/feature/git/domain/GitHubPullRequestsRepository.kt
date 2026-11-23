@@ -14,6 +14,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.net.URLEncoder
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,6 +39,8 @@ class GitHubPullRequestsRepository @Inject constructor(
         const val PER_PAGE = 100
         /** CI 检查摘要截断长度：避免把整段日志塞进列表/工具结果。 */
         const val MAX_SUMMARY_CHARS = 300
+        /** 按 SHA 取文件内容时的字节上限：超过则降级为「文件过大」，不拉全量文本。 */
+        const val MAX_RAW_FILE_BYTES = 2L * 1024 * 1024
         val VALID_STATES = setOf("open", "closed", "all")
     }
 
@@ -90,7 +94,7 @@ class GitHubPullRequestsRepository @Inject constructor(
                     ?: CheckRunsResponse()
                 val runs = runsResponse.checkRuns.map { dto ->
                     GitHubCheckRun(
-                        name = dto.name,
+                        name = dto.name.ifBlank { dto.output?.title ?: "" },
                         status = dto.status,
                         conclusion = dto.conclusion,
                         htmlUrl = dto.htmlUrl,
@@ -121,6 +125,13 @@ class GitHubPullRequestsRepository @Inject constructor(
                             name = status.context,
                             status = "completed",
                             conclusion = "failure",
+                            htmlUrl = status.targetUrl,
+                            summary = status.description
+                        )
+                        "neutral" -> GitHubCheckRun(
+                            name = status.context,
+                            status = "completed",
+                            conclusion = "success",
                             htmlUrl = status.targetUrl,
                             summary = status.description
                         )
@@ -260,6 +271,50 @@ class GitHubPullRequestsRepository @Inject constructor(
                 val body = execute(url, target.token)
                 val type = object : TypeToken<List<GitHubPullRequestFile>>() {}.type
                 Result.success(gson.fromJson<List<GitHubPullRequestFile>>(body, type) ?: emptyList())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    /**
+     * 取某 SHA 下某文件路径的原始文本内容，作为 PR 文件 diff 的 contentProvider。
+     * 用 contents API + `Accept: application/vnd.github.raw` 拿原始文本（避开 execute 的 JSON Accept）。
+     * 文件在该 SHA 下不存在（404）时返回空串，供 computeDiff 按全新增/全删除呈现；
+     * 超过 [MAX_RAW_FILE_BYTES] 抛 [GitOutputTooLargeException]，走「文件过大」降级。
+     */
+    suspend fun fetchFileContentAt(sha: String, path: String): Result<String> =
+        withContext(Dispatchers.IO) {
+            try {
+                if (sha.isBlank() || path.isBlank()) return@withContext Result.success("")
+                val target = resolveTarget() ?: return@withContext errorResult()
+                // contents API 的 path 段需逐段编码并保留「/」分隔符，否则带空格/#/中文的路径取不到。
+                val encodedPath = path.split('/').joinToString("/") { URLEncoder.encode(it, "UTF-8") }
+                val url = "$API_BASE/${target.owner}/${target.repo}/contents/$encodedPath" +
+                    "?ref=${URLEncoder.encode(sha, "UTF-8")}"
+                val request = Request.Builder()
+                    .url(url)
+                    .header("Accept", "application/vnd.github.raw")
+                    .header("Authorization", "Bearer ${target.token}")
+                    .get()
+                    .build()
+                client.newCall(request).execute().use { resp ->
+                    when {
+                        resp.code == 404 -> Result.success("")
+                        !resp.isSuccessful -> throw GitHubPullRequestsException(
+                            "HTTP ${resp.code} fetching $path at $sha"
+                        )
+                        else -> {
+                            if ((resp.body?.contentLength() ?: -1L) > MAX_RAW_FILE_BYTES) {
+                                throw GitOutputTooLargeException()
+                            }
+                            val bytes = resp.body?.bytes() ?: ByteArray(0)
+                            if (bytes.size > MAX_RAW_FILE_BYTES) throw GitOutputTooLargeException()
+                            Result.success(String(bytes))
+                        }
+                    }
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

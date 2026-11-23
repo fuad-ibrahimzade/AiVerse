@@ -44,6 +44,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -88,6 +89,10 @@ class GitViewModel @Inject constructor(
         /** 列表页只为前 N 条 PR 拉 CI 状态，避免一次刷新打满 GitHub API 配额。 */
         const val PR_CHECKS_ON_LIST = 20
         const val PR_CHECKS_CONCURRENCY = 4
+        /** 详情页 CI 轮询间隔：有检查仍进行中时按此周期复查，避免 job 结束后界面停在「进行中」。 */
+        const val PR_CHECKS_POLL_INTERVAL_MS = 12_000L
+        /** 详情页 CI 轮询最大次数：超过即停，防止长期 pending 的 job 无限轮询打满配额。 */
+        const val PR_CHECKS_POLL_MAX_ATTEMPTS = 6
     }
 
     /** 当前工作区是否位于宿主外部存储；该文件系统与 git 写对象不兼容，错误提示需引导迁移。 */
@@ -664,6 +669,8 @@ class GitViewModel @Inject constructor(
     private var pullChecksJob: Job? = null
     /** PR 详情加载任务（详情、CI、评论都由它的子协程执行）。 */
     private var pullDetailJob: Job? = null
+    /** 详情页 CI 轮询任务；页面关闭/切换 PR 时取消，防止泄漏与过期回写。 */
+    private var pullDetailChecksPollJob: Job? = null
 
     /**
      * 加载当前过滤下的 PR 列表。仅 GitHub 仓库且有 token 时请求；否则置已加载（展示提示态）。
@@ -745,6 +752,7 @@ class GitViewModel @Inject constructor(
     /** 打开某条 PR 的详情页：并行拉详情、CI 与评论；失败时页内显示错误+重试。 */
     fun openPullRequestDetail(number: Long) {
         pullDetailJob?.cancel()
+        pullDetailChecksPollJob?.cancel()
         _state.update {
             it.copy(
                 pullDetailNumber = number,
@@ -791,6 +799,7 @@ class GitViewModel @Inject constructor(
     /** 关闭 PR 详情页。 */
     fun closePullRequestDetail() {
         pullDetailJob?.cancel()
+        pullDetailChecksPollJob?.cancel()
         _state.update {
             it.copy(
                 pullDetailNumber = null,
@@ -819,6 +828,28 @@ class GitViewModel @Inject constructor(
         val summary = pullRequestsRepository.getChecks(sha).getOrNull()
         if (_state.value.pullDetailNumber != number) return
         _state.update { it.copy(pullDetailChecks = summary, pullDetailChecksLoading = false) }
+        if (summary != null && summary.pending > 0) startPullDetailChecksPolling(number, sha)
+    }
+
+    /**
+     * 详情页 CI 有限次轮询：仍处 pending 的检查按固定间隔复查，直到全部进入终态、达到次数上限
+     * 或离开详情页。job 由 [closePullRequestDetail] / 切换 PR 取消，避免界面停在「进行中」或泄漏。
+     */
+    private fun startPullDetailChecksPolling(number: Long, sha: String) {
+        if (sha.isBlank()) return
+        pullDetailChecksPollJob?.cancel()
+        pullDetailChecksPollJob = viewModelScope.launch {
+            var attempt = 0
+            while (attempt < PR_CHECKS_POLL_MAX_ATTEMPTS) {
+                delay(PR_CHECKS_POLL_INTERVAL_MS)
+                if (_state.value.pullDetailNumber != number) return@launch
+                attempt++
+                val summary = pullRequestsRepository.getChecks(sha).getOrNull() ?: continue
+                if (_state.value.pullDetailNumber != number) return@launch
+                _state.update { it.copy(pullDetailChecks = summary, pullDetailChecksLoading = false) }
+                if (summary.pending <= 0) return@launch
+            }
+        }
     }
 
     private suspend fun loadPullCommentsFor(number: Long) {
@@ -1533,6 +1564,18 @@ class GitViewModel @Inject constructor(
                     null
                 }
             finishDiff(data)
+        }
+    }
+
+    /**
+     * 加载 PR 中某文件的差异（base 为旧、head 为新）。
+ * baseSha/headSha 取自 PR 的 base.sha / head.sha，path 为文件路径。
+ * 用 GitHub contents API 按 SHA 取两侧文本（404 返空串按全增/全删，超大抛 GitOutputTooLargeException 走降级），
+ * 走与工作区/提交 diff 相同的 loadDiff 状态机（成功填 diffData，失败关页 toast）。
+ */
+    fun loadPullRequestFileDiff(headSha: String, baseSha: String, path: String) {
+        loadDiff(path, baseSha, headSha) { sha, p ->
+            pullRequestsRepository.fetchFileContentAt(sha, p).getOrThrow()
         }
     }
 
