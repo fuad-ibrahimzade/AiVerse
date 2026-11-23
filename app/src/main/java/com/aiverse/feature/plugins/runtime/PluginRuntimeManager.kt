@@ -361,14 +361,14 @@ class PluginRuntimeManager @Inject constructor(
             "host.share.image" -> hostCall {
                 val target = paths.resolveLocalImage(
                     PluginHostPaths.requireString(params, "path"),
-                    PluginSystemService.MAX_SHARE_IMAGE_BYTES
+                    MAX_SHARE_IMAGE_BYTES
                 )
                 systemService.shareImage(pluginId, target, (params["title"] as? JsonPrimitive)?.contentOrNull)
             }
             "host.share.file" -> hostCall {
                 val target = paths.resolveLocalFile(
                     PluginHostPaths.requireString(params, "path"),
-                    PluginSystemService.MAX_SHARE_IMAGE_BYTES
+                    MAX_SHARE_IMAGE_BYTES
                 )
                 systemService.shareFile(pluginId, target, (params["title"] as? JsonPrimitive)?.contentOrNull)
             }
@@ -671,5 +671,7 @@ class PluginRuntimeManager @Inject constructor(
         const val DEFAULT_SSH_TIMEOUT_SECONDS = 120L
         const val OVERLAY_MESSAGE_TIMEOUT_MS = 30_000L
         const val PROCESS_ORIGIN = "process"
+        /** 分享图片/文件的字节上限：与 [PluginSystemService.shareImage] 内部兜底一致，供 resolve 阶段提前校验。 */
+        const val MAX_SHARE_IMAGE_BYTES = 20L * 1024 * 1024
     }
 }
