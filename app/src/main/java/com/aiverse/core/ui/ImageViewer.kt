@@ -476,8 +476,8 @@ fun ZoomableImage(
 
     val imageSize = remember(painter) {
         val s = painter.intrinsicSize
-        // 动图可能报 UnknownSize / INFINITE，此时交给容器尺寸 Fit 充满。
-        if (s.width > 0f && s.height > 0f && s != Size.Unspecified) {
+        // 动图可能报未就绪 / INFINITE（宽高 <= 0，已覆盖 Size.Unspecified 的 -1），此时交给容器尺寸 Fit 充满。
+        if (s.width > 0f && s.height > 0f) {
             IntSize(s.width.toInt(), s.height.toInt())
         } else {
             IntSize.Zero

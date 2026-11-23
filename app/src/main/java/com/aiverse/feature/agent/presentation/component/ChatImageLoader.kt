@@ -207,14 +207,20 @@ private fun looksAnimatedHeader(header: ByteArray): Boolean {
  */
 private fun hasMotionPhotoMarker(file: File): Boolean {
     if (!isMotionPhotoContainer(file.name)) return false
-    if (scanForMotionMarker(readHeader(file))) return true
-    // 尾部：部分厂商把 XMP / 动图数据放文件尾。
+    // 头部只读一次，供下方的动图判定与标记扫描共用。
+    val head = readHeader(file)
+    if (scanForMotionMarker(head)) return true
+    // 尾部：部分厂商把 XMP / 动图数据放文件尾。读的时候向前多带 MOTION_MARKER.size 个字节做重叠，
+    // 避免标记恰好横跨「头尾分段截断点」被切成两半而漏检；重叠多扫一点无副作用。
     val tail = runCatching {
         java.io.RandomAccessFile(file, "r").use { raf ->
             val len = raf.length()
             val start = maxOf(0L, len - HEADER_SCAN_BYTES)
             raf.seek(start)
-            val buf = ByteArray((len - start).toInt())
+            val tailLen = len - start
+            val overlap = minOf(MOTION_MARKER.size.toLong(), start).toInt()
+            val buf = ByteArray((tailLen + overlap).toInt())
+            raf.seek(start - overlap)
             raf.readFully(buf)
             buf
         }
